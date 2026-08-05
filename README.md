@@ -1,0 +1,61 @@
+# glyphcull-runtime-rs
+
+The native GlyphCull runtime in Rust. Architecture is identical to
+`glyphcull-runtime-js`; only implementation changes. Compiles to:
+
+- `wasm32-unknown-unknown` (browser host)
+- desktop (Linux/macOS/Windows)
+- mobile (`aarch64-linux-android`, `x86_64-linux-android`)
+
+Renderer: **WebGPU** (via wgpu) with **WebGL** fallback.
+
+```
+Compiled Document (.cull)
+        ↓
+Visibility System
+        ↓
+Streaming Runtime
+        ↓
+GPU Draw List
+        ↓
+Pixels
+```
+
+## Crate layout
+
+```
+crates/
+  glyphcull-core/     — reader, Document model, visibility, materialization, lifecycle,
+                        layout, glyph cache, selection, draw list. Platform-agnostic.
+  glyphcull-render/   — wgpu renderer: WebGPU backend, GL (WebGL2) fallback; MSDF shaders;
+                        texture management; draw list executor.
+  glyphcull-wasm/     — wasm32 bindings exposing the identical tiny API
+                        (load/scroll/paint/select/copy/destroy).
+  glyphcull-desktop/  — native host application (winit + wgpu).
+```
+
+## The runtime is not a browser
+
+The runtime knows nothing about HTML, Markdown, or CSS. The compiler owns translation; the
+runtime owns execution. The package format (`glyphcull-compiler/docs/format/SPEC.md`) is the
+only contract. The Rust reader is an *independent* implementation of that spec — one of two
+independent readers (JS being the other), which is how the contract is validated.
+
+## Principles
+
+- **Culling never materializes; materialization never culls.**
+- **Chunk lifecycle is explicit**: Compressed → Queued → Materializing → Visible → Cooling →
+  Evicted. No hidden state.
+- **Deterministic architecture**: same package + same viewport → same draw list.
+- **Memory discipline**: no `unsafe` except an audited single module, if ever; bounds-checked
+  reader; resource budgets enforced.
+- **Terminology**: graphics-engine vocabulary (GLOSSARY.md).
+
+## Repository documents
+
+`Architecture.md` · `DESIGN.md` · `ROADMAP.md` · `TESTING.md` · `PERFORMANCE.md` ·
+`SECURITY.md` · `CONTRIBUTING.md` · `CHANGELOG.md`
+
+## License
+
+Apache-2.0. See [`LICENSE`](LICENSE).
