@@ -1,0 +1,22 @@
+[package]
+name = "glyphcull-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "GlyphCull wasm host: wasm-bindgen bindings for exactly load/scroll/paint/select/copy/destroy over glyphcull-core + glyphcull-render."
+
+[lints]
+workspace = true
+
+[dependencies]
+glyphcull-core = { path = "../glyphcull-core" }
+glyphcull-render = { path = "../glyphcull-render" }
+js-sys = "0.3"
+ouroboros = "0.18"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement"] }
+wgpu = "26"

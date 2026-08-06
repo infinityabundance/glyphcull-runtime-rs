@@ -542,6 +542,18 @@ impl Renderer {
         }
     }
 
+    /// The device (the host needs it to configure its surface).
+    #[must_use]
+    pub const fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    /// The queue (for direct uploads by the host, if needed).
+    #[must_use]
+    pub const fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
     /// Register a device-loss callback (the host re-creates the renderer and
     /// re-uploads textures from the core model; mirrors the JS context-restore
     /// flow).

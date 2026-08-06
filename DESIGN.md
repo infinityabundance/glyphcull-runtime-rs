@@ -268,6 +268,34 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
   and SPIR-V (Vulkan) via naga; the tests validate both translations headlessly. The
   JS's hand-written GLSL expresses the same math.
 
+## D29. The host is a self-referential document pipeline (wasm host)
+
+- **One owned object, not glued lifetimes**: the host pins the borrow chain
+  `Package → DocumentModel → LayoutEngine` with `ouroboros` instead of joining three
+  separately-owned objects with raw pointers. `doc` and `layout` are declared
+  `#[covariant] #[borrows(...)]`; the host is constructed once (the package is
+  validated by an independent build first, so the pinned re-build's `expect` is
+  provably safe) and destroyed as a whole.
+- **One lifecycle**: `MaterializationScheduler` owns the `LifecycleManager` (D22); the
+  host reaches it through `scheduler.lifecycle_mut()` — there is exactly one manager
+  per document, and every transition still goes through the scheduler's guard.
+- **`with_mut` field discipline**: ouroboros hands tail fields to the closure as
+  `&mut T` and borrowed fields as `&T`. The scheduler's geometry callback borrows only
+  the layout engine (`let layout = &*fields.layout`), and stamp preparation is a free
+  function (`prepare_stamps(cache, atlases, record)`) so the borrow checker splits the
+  worker's `layout` read from its `cache` write — no interior mutability needed.
+- **The sink is a trait seam**: `FrameSink` (uploads, draw, resize, destroy) is a
+  `Box<dyn FrameSink>`; the wgpu implementation lives in `sink.rs`, and native tests
+  inject a recording sink — the entire host is tested with no wasm and no GPU.
+- **The surface is `'static` by ownership**: `create_surface(SurfaceTarget::Canvas(canvas))`
+  passes the canvas by value — the surface keeps its own copy of the handle, so the
+  returned `Surface<'static>` matches the sink's field. Borrowing the canvas would
+  yield a frame-bound surface that cannot be stored.
+- **`#[cfg(web)]` boundary**: `load` (and its `load_inner`/`parse_options` helpers and
+  the canvas/future imports) are gated on `web`; `host.rs` is platform-agnostic and
+  compiles on native and Android. CI builds native (tests), wasm32, and both Android
+  ABIs from the same workspace member.
+
 ## R-series: deliberate divergences from the JS runtime (correctness)
 
 The Rust runtime is a faithful mirror; these are the places it deliberately does not

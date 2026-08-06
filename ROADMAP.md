@@ -20,7 +20,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 - [x] **4.8 glyphcull-core/draw list**: deterministic batching; serialization for tests.
 - [x] **4.9 glyphcull-render**: wgpu init lifecycle; WebGPU backend; GL fallback; MSDF
       shaders (WGSL); texture management; device-loss recovery.
-- [ ] **4.10 glyphcull-wasm**: wasm32 bindings; tiny API; memory budget reporting.
+- [x] **4.10 glyphcull-wasm**: wasm32 bindings; tiny API; memory budget reporting.
 - [ ] **4.11 glyphcull-desktop**: winit host; input wiring; windowing.
 - [ ] **4.12 Mobile targets**: Android target build verification; mobile host crate recorded
       as future candidate with core/render readiness demonstrated.

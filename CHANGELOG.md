@@ -4,6 +4,30 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.10 — glyphcull-wasm)
+
+- `glyphcull-wasm` workspace member: the wasm host — wasm-bindgen bindings for exactly
+  `load/scroll/paint/select/copy/destroy` (mirrors the JS `src/api/runtime.ts`), typed
+  errors with the JS `RuntimeError` kinds.
+  - `host` — the platform-agnostic document host: a self-referential ouroboros pipeline
+    (`Package → DocumentModel → LayoutEngine`, DESIGN.md D29), the scheduler owning the
+    lifecycle (D22), visibility + reconciliation + one bounded cooperative cycle per
+    `scroll`, draw-list + render-plan playback per `paint`, hit-test selection with
+    lifecycle pinning, `copy`, and idempotent `destroy`.
+  - `sink` — the wgpu `FrameSink`: atlas-page and image uploads (RGB8 padded to RGBA8),
+    surface configuration against a non-sRGB target (D28), per-frame present.
+  - `lib` — the `#[wasm_bindgen]` layer: `load(bytes, canvas, options)` takes the canvas
+    by value so the surface is `'static` (`SurfaceTarget::Canvas`), and the entire
+    canvas-dependent path is `#[cfg(web)]` — the crate compiles on native, wasm32, and
+    both Android ABIs from one workspace member.
+  - `Renderer::device()`/`queue()` accessors so the host can configure its surface.
+- Test suite: `tests/host.rs` — the six-operation contract against a recording sink
+  (load validation, upload census, scroll/paint/resize behavior, select-and-copy
+  round-trips incl. glyph-position hit tests, destroy semantics, multi-document
+  isolation, selection pinning); no wasm, no GPU.
+- Workspace lint config: `unexpected_cfgs` declares `cfg(web)` (a built-in rustc target
+  cfg that is not in check-cfg's default set).
+
 ### Added (Phase 4.9 — glyphcull-render)
 
 - `glyphcull-render` workspace member: the wgpu MSDF renderer (WebGPU + GL/WebGL2

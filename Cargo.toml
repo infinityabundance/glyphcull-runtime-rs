@@ -3,8 +3,9 @@ resolver = "2"
 members = [
     "crates/glyphcull-core",
     "crates/glyphcull-render",
-    # crates/glyphcull-wasm, glyphcull-desktop land with their phases (4.10–4.11);
-    # the members list grows as each crate ships.
+    "crates/glyphcull-wasm",
+    # glyphcull-desktop lands with its phase (4.11); the members list grows as
+    # each crate ships.
 ]
 
 [workspace.package]
@@ -23,6 +24,9 @@ repository = "https://github.com/infinityabundance/glyphcull-runtime-rs"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "deny"
+# `web` is a built-in rustc target cfg (wasm32-unknown-unknown et al.), but it
+# is not in check-cfg's default known set; declare it so the lint stays clean.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web)'] }
 
 [workspace.lints.clippy]
 correctness = "deny"

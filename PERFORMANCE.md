@@ -53,6 +53,20 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.10 — glyphcull-wasm host (no benchmark: pure glue over measured subsystems)
+
+Same environment as 4.1. The host adds no new hot path of its own: per call it runs the
+already-measured core pipeline (visibility, materialization, draw list, plan) inside one
+ouroboros `with_mut` closure, plus a constant number of BTreeMap lookups (page/image
+handles — 4 entries for the golden) and the wgpu submission (measured on the desktop host
+at 4.11). The plan build is benchmarked as `render-plan/golden-full-pipeline` above;
+`tests/host.rs` proves the per-call behavior (including that a scroll resizes the sink
+only on size change) without a GPU.
+
+Memory: the host's own state is bounded and proportional to the document (one
+`BTreeSet`/`BTreeMap` per handle table); the glyph cache budget and texture budget are
+enforced by the measured subsystems.
+
 ### 4.9 — glyphcull-render (committed benchmarks, headless)
 
 Same environment as 4.1. The plan benchmark measures the headless hot path (the GPU

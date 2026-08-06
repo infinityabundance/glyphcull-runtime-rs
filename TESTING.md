@@ -1,8 +1,9 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.9 landed (reader, document model, lifecycle, visibility,
-materialization, layout, glyph cache, selection, draw list, render). The pyramid below
-is the target for Phase 4; those layers are delivered (see `crates/*/tests/`).
+Status: Phases 4.1–4.10 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection, draw list, render, wasm host). The
+pyramid below is the target for Phase 4; those layers are delivered (see
+`crates/*/tests/`).
 
 ## 1. Principles
 
@@ -92,7 +93,10 @@ is the target for Phase 4; those layers are delivered (see `crates/*/tests/`).
   via naga; shader math equals the CPU reference; plan unit tests). GPU execution is
   exercised on the desktop host (4.11); the renderer compiles for native, wasm32, and
   Android in CI.
-- **wasm**: binding contract tests; budget reporting; destroyed-handle errors.
+- **wasm**: the six-operation contract over the compiler golden package against a
+  recording sink — `tests/host.rs` (load validation, upload census, scroll/paint/resize,
+  select-and-copy round-trips, destroy semantics, multi-document isolation, selection
+  pinning); no wasm, no GPU.
 - **desktop**: input→API wiring tests (with a headless harness where the host allows).
 
 ### Integration

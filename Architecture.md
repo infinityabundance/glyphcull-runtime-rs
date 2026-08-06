@@ -240,9 +240,13 @@ quads (mirrors the JS `src/render/drawlist.ts`).
 
 ## 5. Hosts
 
-- **wasm** (`glyphcull-wasm`): wasm-bindgen bindings for exactly
-  `load/scroll/paint/select/copy/destroy`; canvas ownership per host convention;
-  cooperative budget per call (no threads in wasm32).
+- **wasm** (`glyphcull-wasm`) — **delivered (4.10)**. wasm-bindgen bindings for exactly
+  `load/scroll/paint/select/copy/destroy`; `load(bytes, canvas, options)` takes the canvas
+  by value so the wgpu surface is `'static` (DESIGN.md D29), and the canvas-dependent path
+  is `#[cfg(web)]` — `host.rs` is platform-agnostic and native-tested against a recording
+  `FrameSink` (no GPU). Cooperative budget per call (no threads in wasm32); the host is a
+  self-referential `Package → model → layout` pipeline (ouroboros), one lifecycle owned by
+  the scheduler, typed errors mirroring the JS `RuntimeError` kinds.
 - **desktop** (`glyphcull-desktop`): winit window + wgpu surface; input (scroll/select)
   wired to the same API.
 - **mobile**: Android targets (`aarch64-linux-android`, `x86_64-linux-android`) recorded in
