@@ -1,8 +1,8 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.4 landed (glyphcull-core reader + document model + lifecycle +
-visibility); living document, updated as each crate lands. This runtime mirrors
-`glyphcull-runtime-js` exactly in architecture — subsystem responsibilities, state
+Status: Phases 4.1–4.5 landed (glyphcull-core reader + document model + lifecycle +
+visibility + materialization); living document, updated as each crate lands. This runtime
+mirrors `glyphcull-runtime-js` exactly in architecture — subsystem responsibilities, state
 machines, and data flow are identical; only implementation differs.
 
 ## 1. Position
@@ -101,10 +101,22 @@ visible set. Culling determines; it never materializes.
   viewport, margin).
 
 ### 3.4 materialization
-- Priority queue (deterministic priorities: viewport distance + direction of travel),
-  time/memory budgets, cooperative yields (in wasm: budget per call; in native: same
-  discipline so behavior is identical across hosts).
-- Eviction: Visible → Cooling → Evicted with a cooling period; LRU-with-age, deterministic.
+
+**Delivered (4.5).** `glyphcull-core::materialize` — the streaming scheduler.
+
+- Deterministic binary min-heap (mirrors the JS `PriorityQueue`): `priority_key` is a
+  pure function of (geometry, viewport, direction of travel) — intersecting chunks
+  first in document order, then 1024 px distance tiers with chunks ahead of travel
+  preferred, then document order; geometry-less chunks sort by document order (the
+  sequential frontier).
+- `reconcile` drives the visible set into the lifecycle (enqueue/requeue/dequeue/cancel/
+  cull); `run_frame` executes work within the per-frame budget with cooperative yields
+  (a yielding chunk pauses back to Queued and re-queues behind an anti-starvation
+  penalty); `tick` expires cooling chunks through the worker; `evict_for_memory`
+  releases the furthest visible chunks first under memory pressure (never failing).
+- The scheduler owns its `LifecycleManager` (composition) and borrows the clock; every
+  state change goes through the lifecycle — the scheduler never mutates chunk state
+  directly.
 
 ### 3.5 lifecycle
 

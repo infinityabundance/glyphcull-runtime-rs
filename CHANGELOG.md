@@ -4,6 +4,24 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.5 — glyphcull-core materialization)
+
+- `glyphcull-core::materialize` — the streaming materialization scheduler mirroring the
+  JS runtime: a deterministic binary min-heap; `priority_key` (pure function of
+  geometry/viewport/direction: intersecting chunks first, 1024 px distance tiers,
+  ahead-of-travel preferred, document-order tie-breaks, sequential frontier for
+  geometry-less chunks); `reconcile` (visible set → lifecycle transitions incl.
+  requeue of cooling chunks and dequeue/cancel of departed ones); `run_frame`
+  (per-frame budget, cooperative yields with an anti-starvation penalty, measured
+  elapsed never affecting decisions); `tick` (cooling expiry through the worker,
+  selection-respecting); `evict_for_memory` (furthest visible chunks released first,
+  deterministic). The scheduler owns its `LifecycleManager` and borrows the clock.
+- Materialization test suite: priority ordering (intersect/distance/direction/
+  tie-breaks), processing order, frame budget, no-starvation cooperative yielding,
+  visit-sequence determinism, reconcile (cull + cancel + dequeue + requeue paths),
+  tick (period, selection pins, release order), evict_for_memory (furthest-first,
+  byte targets), and a 100-case no-starvation proptest.
+
 ### Added (Phase 4.4 — glyphcull-core visibility)
 
 - `glyphcull-core::visibility` — the visibility system mirroring the JS runtime:

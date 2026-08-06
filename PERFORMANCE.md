@@ -51,6 +51,13 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.5 — glyphcull-core materialization (no benchmark: measured in 4.9)
+
+The scheduler's hot path is the priority queue; its behavior (ordering, starvation
+freedom, budget discipline) is covered by `tests/materialize.rs`, including a 100-case
+no-starvation property. End-to-end materialization throughput is measured once the
+renderer lands (4.9), where frames are real.
+
 ### 4.4 — glyphcull-core visibility (no benchmark: bounded by the walk)
 
 Culling is one O(n) walk over the visible portion of the document; per-frame cost is

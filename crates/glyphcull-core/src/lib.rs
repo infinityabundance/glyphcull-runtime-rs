@@ -35,9 +35,14 @@
 //! - [`visibility`] — the visibility system: semantic + geometric culling
 //!   producing the visible set, the hidden set, and the materialization
 //!   frontier — a pure function of (document, geometry, viewport, margin).
+//! - [`materialize`] — the streaming materialization scheduler: a
+//!   deterministic priority queue (geometry, viewport, direction of travel),
+//!   cooperative yields within a per-frame time budget, and deterministic
+//!   eviction (cooling expiry + memory-pressure eviction of the furthest
+//!   visible chunks).
 //!
-//! Subsequent phases add materialization, layout, glyph cache, selection,
-//! and the draw list as sibling modules (see `ROADMAP.md` 4.5–4.8).
+//! Subsequent phases add layout, glyph cache, selection, and the draw list
+//! as sibling modules (see `ROADMAP.md` 4.6–4.8).
 //!
 //! # Guarantees
 //!
@@ -53,5 +58,6 @@ pub mod document;
 pub mod error;
 pub mod lifecycle;
 pub mod limits;
+pub mod materialize;
 pub mod reader;
 pub mod visibility;

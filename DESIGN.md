@@ -156,6 +156,23 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   structural visibility bottom-up — mirroring the JS recursion's post-order
   aggregation without the stack risk.
 
+## D22. The scheduler owns its lifecycle (materialization)
+
+- `MaterializationScheduler` holds its `LifecycleManager` by value and exposes
+  `lifecycle()`/`lifecycle_mut()` accessors, instead of borrowing `&mut` (which would
+  freeze all other access for the scheduler's lifetime — Rust's exclusivity where the
+  JS shares references freely).
+- **Rationale**: composition keeps the lifecycle's invariants intact (every transition
+  still goes through the manager) while letting the runtime and tests read state
+  freely. The runtime composes one scheduler per document.
+
+## D23. Exact f64 priority arithmetic (materialization)
+
+- `priority_key` mirrors the JS `number` arithmetic (`tier × 2³² + ahead-bit + ordinal`)
+  in `f64`, so ordering is identical across runtimes; the heap comparator reproduces the
+  JS `!==`/`<` semantics exactly, including NaN behavior (never less) — keys are finite
+  for realistic documents.
+
 ## D21. f32 document coordinates (visibility)
 
 - `Rect`/`Viewport` use `f32` (the SPEC's glyph metrics are f32 and the renderer
