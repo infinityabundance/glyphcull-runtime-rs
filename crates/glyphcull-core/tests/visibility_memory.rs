@@ -1,7 +1,14 @@
-//! Stress tests for the visibility system: culling over a 100k-chunk document
-//! is bounded and deterministic. (The RSS memory gate lives in its own binary,
-//! `tests/visibility_memory.rs`, so parallel test threads cannot inflate
-//! `VmHWM` mid-measurement.)
+//! Memory regression test: peak allocation while culling a 100k-chunk
+//! document must stay within the committed budget (PERFORMANCE.md §2).
+//! Culling allocates per walked chunk (visible/not-yet-visible vectors), so
+//! the gate uses the wide-document package.
+//!
+//! Measurement: the process RSS high-water mark (`VmHWM` from
+//! `/proc/self/status`, Linux) before and after the loop; the delta is the
+//! cull peak footprint. The gate lives in its own test binary so no
+//! concurrently running test thread can inflate `VmHWM` mid-measurement (the
+//! reason it was split out of `visibility_stress.rs`; the other memory gates
+//! follow the same single-test-file convention).
 
 #![allow(missing_docs)]
 #![allow(
@@ -19,6 +26,9 @@ use glyphcull_core::document::build_document;
 use glyphcull_core::reader::chunk::ChunkKind;
 use glyphcull_core::reader::parse;
 use glyphcull_core::visibility::{compute_visible_set, GeometrySource, Rect, Viewport};
+
+/// The committed peak-memory multiplier over the input package size.
+const PEAK_MULTIPLIER: usize = 8;
 
 struct MapGeometry(HashMap<u32, Rect>);
 
@@ -89,57 +99,66 @@ fn tall_geometry(count: u32) -> HashMap<u32, Rect> {
     rects
 }
 
-/// The process RSS high-water mark is measured in `tests/visibility_memory.rs`
-/// (its own binary), not here.
-#[test]
-fn culling_over_a_hundred_thousand_chunks_is_bounded_and_exact() {
-    let bytes = wide_document_bytes();
-    let pkg = parse(&bytes).expect("parses");
-    let doc = build_document(&pkg).expect("builds");
-    let geometry = MapGeometry(tall_geometry(100_000));
-
-    // A viewport covering one paragraph: exactly that paragraph + root.
-    let viewport = Viewport {
-        x: 0.0,
-        y: 1000.0,
-        w: 400.0,
-        h: 25.0,
-    };
-    let result = compute_visible_set(&doc, &geometry, viewport, 0.0);
-    // y = 30 × (id − 2): the viewport 1000..1025 overlaps ids 35 (990..1015)
-    // and 36 (1020..1045).
-    assert_eq!(result.visible, vec![1, 35, 36], "viewport at y=1000");
-
-    // A full-height viewport: everything is visible.
-    let full = Viewport {
-        x: 0.0,
-        y: 0.0,
-        w: 400.0,
-        h: 100_000.0 * 30.0,
-    };
-    let result = compute_visible_set(&doc, &geometry, full, 0.0);
-    assert_eq!(result.visible.len(), 100_001);
-    assert!(result.hidden.is_empty());
-    assert!(result.not_yet_visible.is_empty());
+/// The process RSS high-water mark in bytes (Linux).
+fn vmhwm_bytes() -> usize {
+    let status = std::fs::read_to_string("/proc/self/status").expect("read /proc/self/status");
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("VmHWM:") {
+            let kb: usize = rest
+                .trim()
+                .trim_end_matches(" kB")
+                .trim()
+                .parse()
+                .expect("parse VmHWM");
+            return kb * 1024;
+        }
+    }
+    panic!("VmHWM not found in /proc/self/status");
 }
 
-/// The memory gate moved to `tests/visibility_memory.rs` (own binary).
 #[test]
-fn repeated_culls_are_deterministic() {
+fn culling_peak_memory_within_budget() {
+    // The committed budget is 8 × package size (PERFORMANCE.md §2); culling
+    // allocations are proportional to the walked document, so the gate uses
+    // the wide-document package.
     let bytes = wide_document_bytes();
     let pkg = parse(&bytes).expect("parses");
     let doc = build_document(&pkg).expect("builds");
     let geometry = MapGeometry(tall_geometry(100_000));
-    let viewport = Viewport {
-        x: 0.0,
-        y: 5000.0,
-        w: 400.0,
-        h: 500.0,
-    };
-    let reference = compute_visible_set(&doc, &geometry, viewport, 25.0);
-    for _ in 0..200 {
-        let result = compute_visible_set(&doc, &geometry, viewport, 25.0);
-        assert_eq!(result.visible, reference.visible);
-        assert_eq!(result.not_yet_visible, reference.not_yet_visible);
+
+    // Warm up.
+    let _ = compute_visible_set(
+        &doc,
+        &geometry,
+        Viewport {
+            x: 0.0,
+            y: 0.0,
+            w: 400.0,
+            h: 400.0,
+        },
+        0.0,
+    );
+
+    let baseline = vmhwm_bytes();
+    for i in 0..25 {
+        let y = (i * 400) as f32;
+        let viewport = Viewport {
+            x: 0.0,
+            y,
+            w: 400.0,
+            h: 400.0,
+        };
+        let result = compute_visible_set(&doc, &geometry, viewport, 50.0);
+        assert!(!result.visible.is_empty());
     }
+    let peak = vmhwm_bytes() - baseline;
+    let budget = bytes.len() * PEAK_MULTIPLIER;
+    eprintln!(
+        "visibility cull peak: {peak} bytes over 25 culls of a {} byte package (budget {budget})",
+        bytes.len()
+    );
+    assert!(
+        peak <= budget,
+        "cull peak {peak} exceeds budget {budget} ({PEAK_MULTIPLIER} × package)",
+    );
 }

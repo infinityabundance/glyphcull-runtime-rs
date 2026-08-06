@@ -4,6 +4,29 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.7 — glyphcull-core glyph cache + selection)
+
+- `glyphcull-core::glyphs` — the glyph cache mirroring the JS `src/glyphs/cache.ts`:
+  `prepare_glyph` (size-specific stamps: quad + UV + f64 advance + flags per
+  (atlas, codepoint, size, color), from the SPEC §2.5 placement convention) and
+  `GlyphCache` (byte budget, deterministic LRU eviction via a monotonic touch counter
+  — DESIGN.md D27 — chunk-owning `release_chunk` for lifecycle coupling, `clear`). The
+  budget is `u64`, so invalid budgets are unrepresentable (R4).
+- `glyphcull-core::selection` — logical selection mirroring the JS
+  `src/selection/selection.ts`: char-based `TextPosition` (R3), normalized
+  `Selection`, `compare_positions`/`normalize_selection`/`is_collapsed`,
+  `hit_test_point` (nearest line, then nearest glyph center), `range_quads` (per-line
+  highlight quads with contiguous merging and a proportional fallback for glyph-less
+  runs), `covered_chunk_ids`, and `copy_text` with the documented boundary policy
+  (runs re-join, blocks → `\n`, cells of one row → `\t`, rows → `\n`, `br` → `\n`).
+- Test suites: `tests/glyph_cache.rs` (JS-mirror vectors incl. LRU budgeting and
+  release-chunk sharing), `tests/selection.rs` (JS-mirror vectors incl. the synthetic
+  table/br copy policy), `tests/selection_property.rs` (300-case proptests), and the
+  criterion benchmark `glyph_selection` (baselines in PERFORMANCE.md §6).
+- The visibility RSS memory gate moved to its own binary (`tests/visibility_memory.rs`)
+  so parallel test threads cannot inflate `VmHWM` mid-measurement — the same
+  single-test-file convention as the other memory gates.
+
 ### Added (Phase 4.6 — glyphcull-core layout)
 
 - `glyphcull-core::layout` — materialization turns semantic chunks into renderable
@@ -141,6 +164,6 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ### Planned (Phase 4 — per master plan)
 
-- glyphcull-core (glyph cache, selection, draw list); glyphcull-render (wgpu: WebGPU +
+- glyphcull-core (draw list); glyphcull-render (wgpu: WebGPU +
   GL fallback, MSDF); glyphcull-wasm (tiny API bindings); glyphcull-desktop (native
   host); mobile targets.

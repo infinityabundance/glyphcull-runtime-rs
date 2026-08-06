@@ -1,9 +1,9 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.6 landed (glyphcull-core reader, document model, lifecycle, visibility,
-materialization, and layout). Decisions with rationale, alternatives, tradeoffs. Decisions
-that mirror the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are
-new.
+Status: Phases 4.1–4.7 landed (glyphcull-core reader, document model, lifecycle,
+visibility, materialization, layout, and glyph cache/selection). Decisions with
+rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are marked
+(mirrors JS Dn); decisions specific to Rust/wgpu are new.
 
 ## D1. One architecture, two implementations (mirrors JS D1)
 
@@ -239,6 +239,18 @@ new.
   `tests/layout_stress.rs`). Document walks (`all_ids`, `plain_text`) remain iterative
   (D17) — the common adversarial path.
 
+## D27. Deterministic LRU without a linked list (glyph cache)
+
+- The JS `GlyphCache` keeps its stamps in a `Map` whose insertion order *is* the LRU
+  order (`get`/`put` delete + re-insert to touch). Rust's `BTreeMap` has no insertion
+  order, so the LRU chain is a monotonic touch counter: every `get`/`put` takes the next
+  `u64`, and eviction pops the smallest counter. The eviction *set* is identical to the
+  JS (least recently used first); the order map's key tie-break never fires because
+  counters are unique.
+- **Rationale**: `indexmap` would add a dependency; a linked list would need unsafe or
+  `Rc<RefCell>`; the counter is deterministic, allocation-free after setup, and O(log n)
+  per operation like the JS `Map`.
+
 ## R-series: deliberate divergences from the JS runtime (correctness)
 
 The Rust runtime is a faithful mirror; these are the places it deliberately does not
@@ -265,3 +277,17 @@ reproduce a JS defect, each pinned by a test.
   positions, heights, ratios) is identical to the JS. Pinned by
   `tests/layout.rs::wrapped_paragraph_preserves_every_token_exactly_once` and the
   long-paragraph partition check in `tests/layout_stress.rs`.
+
+### R3. Selection offsets are char-based, not UTF-16 (selection)
+
+- `TextPosition.offset` and the run `start`/`end` offsets count Unicode scalar values;
+  the JS counts UTF-16 code units. For BMP text (all fixtures) the two are identical;
+  for astral text the JS can land mid-surrogate (a selection or slice that corrupts
+  text), while the Rust offsets are always well-formed. `copy_text` slices by char
+  offsets accordingly.
+
+### R4. Cache budgets are u64 (glyph cache)
+
+- `GlyphCache::new(budget_bytes: u64)` cannot express a negative or NaN budget, so the
+  JS `RangeError` on invalid budgets is unrepresentable; a zero budget is valid and
+  evicts every stamp on insert (pinned by the in-crate unit test).

@@ -1,8 +1,9 @@
 # Performance — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.6 landed (reader, document model, lifecycle, visibility,
-materialization, layout). Budgets declared; baselines measured per phase. No premature
-optimization: deterministic architecture, then profile, measure, optimize on evidence.
+Status: Phases 4.1–4.7 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection). Budgets declared; baselines measured per
+phase. No premature optimization: deterministic architecture, then profile, measure,
+optimize on evidence.
 
 ## 1. Objectives
 
@@ -51,6 +52,27 @@ and bounded memory from the start:
   document size.
 
 ## 6. Evidence log
+
+### 4.7 — glyphcull-core glyph cache + selection (committed benchmarks)
+
+Same environment as 4.1. The cache benchmark measures the deterministic LRU (monotonic
+counter; DESIGN.md D27) at 64k stamps with an unlimited budget; the selection benchmarks
+run against the fully laid-out golden document (22 chunks, ~40 lines).
+
+| Benchmark | Time |
+|---|---|
+| `glyphs/cache-put-64k-unlimited` | 9.17 ms (≈ 7.0 M puts/s) |
+| `glyphs/cache-get-64k-unlimited` | 6.65 ms (≈ 9.6 M gets/s) |
+| `glyphs/hit-test-point` | 13.9 ns |
+| `glyphs/range-quads-full-doc` | 687 ns |
+| `glyphs/copy-text-full-doc` | 811 ns |
+
+Selection is proportional to the covered text (not the document); `copy_text` on a
+100k-chunk span is linear in the covered ids. The glyph cache is self-limiting by
+construction — the byte budget caps retained bytes, so no separate memory gate is needed
+(the LRU eviction is covered by `tests/glyph_cache.rs`).
+
+Commands: `cargo bench -p glyphcull-core --bench glyph_selection`.
 
 ### 4.6 — glyphcull-core layout (committed benchmarks + memory gate)
 

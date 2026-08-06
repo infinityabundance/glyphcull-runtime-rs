@@ -1,8 +1,8 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.6 landed (reader, document model, lifecycle, visibility,
-materialization, layout). The pyramid below is the target for Phase 4; those layers are
-delivered (see `crates/glyphcull-core/tests/`).
+Status: Phases 4.1–4.7 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection). The pyramid below is the target for
+Phase 4; those layers are delivered (see `crates/glyphcull-core/tests/`).
 
 ## 1. Principles
 
@@ -58,8 +58,20 @@ delivered (see `crates/glyphcull-core/tests/`).
   sanity over random texts/widths), `tests/layout_stress.rs` (5000-deep quote chain on a
   64 MiB-stack thread, 2000-block streaming, 3000-word paragraph KP), `tests/layout_memory.rs`
   (RSS gate: full golden layout within the 8 × package budget).
-- **core/glyph cache**: budget enforcement; eviction coupling with lifecycle.
-- **core/selection**: hit testing at boundaries; range merging; copy policy.
+- **core/glyph cache**: budget enforcement; eviction coupling with lifecycle. Delivered:
+  `tests/glyph_cache.rs` (JS-mirror vectors: stamp placement convention vs the golden
+  atlas, missing-codepoint tofu, size scaling, color keying, LRU byte-budget eviction,
+  unlimited budget, `release_chunk` sharing/freeing, `clear`, key round-trip) plus
+  in-crate unit tests (placement convention on a hand-built atlas, missing codepoints,
+  zero-budget eviction).
+- **core/selection**: hit testing at boundaries; range merging; copy policy. Delivered:
+  `tests/selection.rs` (JS-mirror vectors: position ordering/normalization, glyph-center
+  hit testing with boundary/clamp cases, range→quad projection with per-line merging
+  and the proportional fallback, copy policy over the golden — heading/partial/styled
+  runs/block separators — plus synthetic tables for the cell→tab/row→newline policy and
+  a `br` document; block-span copy equivalence property), `tests/selection_property.rs`
+  (300-case proptests: comparison antisymmetry, normalization ordering, copyText
+  determinism, covered-id slice equality).
 - **core/draw list**: batching, z-order, determinism (double-build equality).
 - **render**: shader math unit tests (median-of-three coverage vs analytic), DPR mapping,
   texture budget, device-loss recovery path, WebGPU/GL parity fixtures.
@@ -92,6 +104,9 @@ delivered (see `crates/glyphcull-core/tests/`).
 - Counting-allocator harness (test-only global allocator): load/paint/scroll/destroy
   cycles; retained allocation growth below committed baselines; budget eviction releases
   allocations.
+- RSS gates, one per binary so parallel test threads cannot inflate `VmHWM`
+  mid-measurement: `reader_memory.rs`, `document_memory.rs`, `layout_memory.rs`,
+  `visibility_memory.rs` (moved out of `visibility_stress.rs` in 4.7 for this reason).
 
 ### Performance regression
 

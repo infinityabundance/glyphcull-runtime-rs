@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "layout_golden"
 harness = false
+
+[[bench]]
+name = "glyph_selection"
+harness = false

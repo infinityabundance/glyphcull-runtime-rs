@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2a933787d96dd2a9cd867f5721c79e7087f2569cac14d3a67153d5e13e979b92 # shrinks to a = TextPosition { chunk_id: 1, offset: 0 }, b = TextPosition { chunk_id: 3, offset: 1 }
+cc 7490f2058e45e6a1010df992e12f723fecaf45c701b6e2a5e36664277b46a2fd # shrinks to a = TextPosition { chunk_id: 2, offset: 16 }, b = TextPosition { chunk_id: 2, offset: 16 }

@@ -16,7 +16,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       eviction; starvation tests.
 - [x] **4.6 glyphcull-core/layout**: UAX #29 word boundaries; Knuth–Plass; block layout;
       tables; images; golden layout fixtures (shared with JS runtime).
-- [ ] **4.7 glyphcull-core/glyph cache + selection**: budgets; logical selection; copy policy.
+- [x] **4.7 glyphcull-core/glyph cache + selection**: budgets; logical selection; copy policy.
 - [ ] **4.8 glyphcull-core/draw list**: deterministic batching; serialization for tests.
 - [ ] **4.9 glyphcull-render**: wgpu init lifecycle; WebGPU backend; GL fallback; MSDF
       shaders (WGSL + GLSL); texture management; device-loss recovery.

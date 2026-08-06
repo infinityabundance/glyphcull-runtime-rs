@@ -1,10 +1,10 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.6 landed (glyphcull-core reader + document model + lifecycle +
-visibility + materialization + layout); living document, updated as each crate lands. This
-runtime mirrors `glyphcull-runtime-js` exactly in architecture — subsystem
-responsibilities, state machines, and data flow are identical; only implementation
-differs.
+Status: Phases 4.1–4.7 landed (glyphcull-core reader + document model + lifecycle +
+visibility + materialization + layout + glyph cache/selection); living document, updated
+as each crate lands. This runtime mirrors `glyphcull-runtime-js` exactly in architecture
+— subsystem responsibilities, state machines, and data flow are identical; only
+implementation differs.
 
 ## 1. Position
 
@@ -166,13 +166,33 @@ are resolved in the package.
   streaming: chunks beyond the viewport are never laid out.
 
 ### 3.7 glyph cache
-- Budgeted cache of glyph instances keyed by (atlas, codepoint, size, color); evicted with
-  its owning chunk's lifecycle.
+
+**Delivered (4.7).** `glyphcull-core::glyphs` — budgeted cache of prepared glyph stamps
+(mirrors the JS `src/glyphs/cache.ts`).
+
+- `prepare_glyph` derives a size-specific stamp per (atlas, codepoint, size, color): the
+  pixel-space quad (bearing × size ± padding·scale), the UV rect (box/page texels), the
+  f64 advance, and the flags — the SPEC §2.5 placement convention, exactly as the JS.
+- `GlyphCache`: a byte budget with deterministic LRU eviction (a monotonic touch counter
+  reproduces the JS `Map` re-insertion order exactly — DESIGN.md D27), chunk-owning
+  stamps with `release_chunk` (Evicted ⇒ entries released; shared stamps survive), and
+  `clear` for `destroy()`. The budget is `u64`, so invalid budgets are unrepresentable
+  (DESIGN.md R4).
 
 ### 3.8 selection
-- Logical ranges (chunk id + offsets); geometric projection for highlight rendering;
-  plain-text copy with the documented policy (paragraph breaks, table cells → tabs, rows →
-  newlines).
+
+**Delivered (4.7).** `glyphcull-core::selection` — logical selection, geometric rendering
+(mirrors the JS `src/selection/selection.ts`). Every function is a pure function of
+(document, layout, point/selection): no state, no wall clock.
+
+- `TextPosition` (run chunk + char offset) and normalized `Selection` (start ≤ end in
+  document order), ordered via the dense pre-order index.
+- `hit_test_point` — nearest line (smallest vertical distance) then nearest glyph center;
+  `range_quads` — selection → per-line highlight quads with contiguous-piece merging
+  (proportional fallback for glyph-less runs); `covered_chunk_ids`.
+- `copy_text` — plain text with the documented boundary policy: runs of one block re-join
+  (''), block boundaries → `\n`, cells of one table row → `\t`, rows → `\n`, `br` → `\n`.
+- Offsets are char-based, not UTF-16 (DESIGN.md R3).
 
 ### 3.9 draw list
 - Ordered, batched command sequence (glyph runs, image quads, selection quads,

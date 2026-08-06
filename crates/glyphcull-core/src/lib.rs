@@ -43,9 +43,16 @@
 //! - [`layout`] — the layout engine: breaks, Knuth–Plass line breaking,
 //!   glyph measurement, and the block/layout engine producing absolute
 //!   document geometry (the visibility `GeometrySource`).
+//! - [`glyphs`] — the glyph cache: size-specific prepared stamps (quad + UV +
+//!   metrics per (atlas, codepoint, size, color)), a byte budget with
+//!   deterministic LRU eviction, and chunk-owning release for lifecycle
+//!   coupling.
+//! - [`selection`] — logical selection: document-order positions, hit
+//!   testing, range→quad projection, and plain-text copy with the documented
+//!   boundary policy — pure functions of (document, layout, selection).
 //!
-//! Subsequent phases add the glyph cache, selection, and the draw list as
-//! sibling modules (see `ROADMAP.md` 4.7–4.8).
+//! Subsequent phases add the draw list as a sibling module (see `ROADMAP.md`
+//! 4.8).
 //!
 //! # Guarantees
 //!
@@ -59,9 +66,11 @@
 pub mod clock;
 pub mod document;
 pub mod error;
+pub mod glyphs;
 pub mod layout;
 pub mod lifecycle;
 pub mod limits;
 pub mod materialize;
 pub mod reader;
+pub mod selection;
 pub mod visibility;
