@@ -1,9 +1,9 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phase 4.1 landed (glyphcull-core reader); living document, updated as each crate
-lands. This runtime mirrors `glyphcull-runtime-js` exactly in architecture — subsystem
-responsibilities, state machines, and data flow are identical; only implementation
-differs.
+Status: Phases 4.1–4.2 landed (glyphcull-core reader + document model); living
+document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
+exactly in architecture — subsystem responsibilities, state machines, and data flow
+are identical; only implementation differs.
 
 ## 1. Position
 
@@ -69,8 +69,21 @@ SPEC.md, after the JS one. Contract-tested against the compiler's golden fixture
   §1.6), never panics on input.
 
 ### 3.2 document model
-- Chunk graph, style table, content payloads, atlas descriptors, image payloads; validated
-  at load (tree invariants, reference resolution). No geometry here.
+
+**Delivered (4.2).** `glyphcull-core::document` — the trusted runtime view of a
+package, mirroring the JS `DocumentModel`. **No geometry lives here**.
+
+- `build_document` validates at load: required sections (INFO/CHNK), chunk-graph
+  invariants (single `document` root, dense ids/ordinals, sibling-ring consistency,
+  parent/depth consistency, full reachability, no cycles), reference resolution
+  (style ids, content indices, image refs against IMGS, resolved `font_id` against
+  GLYF), and the five INFO count cross-checks.
+- `ResolvedStyle`: all 16 SPEC §2.3 properties with defaults applied (`resolve_style`).
+- Trusted views: pre-order `all_ids`, sibling `child_ids`, per-chunk `extras_for`,
+  `direct_text`, `image_ref`, and iterative `plain_text` (document-order copy text;
+  `br` → newline, code blocks contribute their direct text).
+- The model borrows the package's decoded payloads — building copies only the
+  resolved style table (no chunk/atlas duplication).
 
 ### 3.3 visibility
 - Viewport culling + semantic culling → visible set. Culling determines; it never

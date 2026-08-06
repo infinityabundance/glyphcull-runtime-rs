@@ -457,6 +457,68 @@ fn rejects_a_package_whose_info_has_unknown_or_wrong_typed_keys() {
     assert_eq!(err.kind(), ErrorKind::InvalidValue);
 }
 
+#[test]
+fn rejects_info_with_a_wrong_format_version_or_bad_digests() {
+    let info_of = |payload: Vec<u8>| -> std::result::Result<
+        Option<glyphcull_core::reader::info::Info>,
+        glyphcull_core::error::Error,
+    > {
+        let bytes = common::build_package(&[common::TestSection {
+            kind: 1,
+            compression: 0,
+            payload,
+        }]);
+        let pkg = parse(&bytes).expect("container parses");
+        pkg.info().map(|opt| opt.cloned())
+    };
+
+    // format_version must equal the header version (1).
+    let bad_version = format!(
+        concat!(
+            "{{\"format_version\":2,\"generator\":\"g\",\"generator_version\":\"v\",",
+            "\"source_digest\":\"{}\",\"document_id\":\"{}\",",
+            "\"chunk_count\":0,\"style_count\":0,\"content_count\":0,\"atlas_count\":0,\"image_count\":0}}"
+        ),
+        "00".repeat(32),
+        "01".repeat(16)
+    )
+    .into_bytes();
+    let err = info_of(bad_version).expect_err("bad format_version");
+    assert_eq!(err.kind(), ErrorKind::UnsupportedVersion);
+
+    // Digests must be lowercase hex of the SPEC lengths.
+    for (key, good, cases) in [
+        (
+            "source_digest",
+            "00".repeat(32),
+            vec!["00".repeat(31), "AA".repeat(32)],
+        ),
+        (
+            "document_id",
+            "01".repeat(16),
+            vec!["01".repeat(15), "FF".repeat(16)],
+        ),
+    ] {
+        for case in cases {
+            let payload = format!(
+                concat!(
+                    "{{\"format_version\":1,\"generator\":\"g\",\"generator_version\":\"v\",",
+                    "\"source_digest\":\"{good}\",\"document_id\":\"{doc}\",",
+                    "\"{key}\":\"{case}\",\"chunk_count\":0,\"style_count\":0,",
+                    "\"content_count\":0,\"atlas_count\":0,\"image_count\":0}}"
+                ),
+                good = good,
+                doc = "01".repeat(16),
+                key = key,
+                case = case,
+            )
+            .into_bytes();
+            let err = info_of(payload).expect_err("bad digest");
+            assert_eq!(err.kind(), ErrorKind::InvalidValue, "{key} case {case:?}");
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Determinism (JS `property.test.ts` "reading is deterministic")
 

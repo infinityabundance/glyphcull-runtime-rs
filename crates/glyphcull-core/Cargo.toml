@@ -23,3 +23,7 @@ criterion = "0.5"
 [[bench]]
 name = "reader_parse"
 harness = false
+
+[[bench]]
+name = "document_build"
+harness = false

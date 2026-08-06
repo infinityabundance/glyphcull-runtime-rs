@@ -1,8 +1,8 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phase 4.1 landed (glyphcull-core reader). Decisions with rationale, alternatives,
-tradeoffs. Decisions that mirror the JS runtime are marked (mirrors JS Dn); decisions
-specific to Rust/wgpu are new.
+Status: Phases 4.1–4.2 landed (glyphcull-core reader + document model). Decisions with
+rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are marked
+(mirrors JS Dn); decisions specific to Rust/wgpu are new.
 
 ## D1. One architecture, two implementations (mirrors JS D1)
 
@@ -114,3 +114,25 @@ specific to Rust/wgpu are new.
   `#![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]` at
   their crate roots, and the in-crate unit-test module scopes the same allows. Same
   policy as the compiler workspace.
+
+## D16. The document model borrows the package (document model)
+
+- `DocumentModel<'a>` holds shared references into the package's decoded payloads
+  (chunk records, extras, content, atlases, images) and owns only the derived data: the
+  cloned `Info` and the resolved style table. The JS model holds the same relationship
+  (it keeps the `Package` and the decoded arrays by reference).
+- **Rationale**: building a model must not duplicate the atlas pages or chunk graph;
+  measured build peak ≈ 2 × package size vs the reader's 1.3 × (the delta is the
+  resolved styles).
+- **Tradeoffs**: the model's lifetime is tied to the package — the runtime owns both,
+  and `build_document(package)` returns a model that borrows it, which is exactly the
+  JS ownership shape.
+
+## D17. Iterative document traversals (document model)
+
+- `all_ids` and `plain_text` use an explicit stack instead of recursion (the JS
+  `plainText` recurses). Output order is identical (pre-order, direct text before
+  children, `br` → newline).
+- **Rationale**: the SPEC caps chunk depth at 2^16 and documents may be adversarial;
+  native stack frames are larger than JS's, so recursion would overflow on deep chains.
+  Stress-tested at 10k depth; the walk stays iterative by design.

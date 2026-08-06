@@ -4,6 +4,31 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.2 — glyphcull-core document model)
+
+- `glyphcull-core::document` — the trusted runtime view of a package (mirrors the JS
+  `DocumentModel`): `build_document` load-time validation of chunk-graph invariants
+  (single document root, dense ids/ordinals, sibling-ring consistency, parent/depth
+  consistency, full reachability, no cycles), reference resolution (style ids, content
+  indices, image refs against IMGS, resolved font_id against GLYF), and the five INFO
+  count cross-checks.
+- `ResolvedStyle` + `resolve_style`: all 16 SPEC §2.3 properties with defaults applied.
+- Trusted views: `all_ids` (pre-order), `child_ids`, `extras_for`, `direct_text`,
+  `image_ref`, and iterative `plain_text` (document-order copy text; `br` → newline;
+  code blocks contribute direct text). The model borrows the package's payloads — no
+  data duplication at build.
+- Reader completion: INFO `format_version` must equal the header version
+  (`UnsupportedVersion`), and `source_digest`/`document_id` must be lowercase hex of the
+  SPEC lengths (`InvalidValue`) — mirroring the JS reader.
+- Document test suite (30 tests + 300-case proptest properties): golden contract, every
+  invariant rejection (cycle, unreachable chunk, broken sibling ring, dangling
+  style/content/image refs, count mismatches, wrong payload kinds), style resolution,
+  direct-text/image-ref resolution, plain-text order (br/code/hr), isolation, random-tree
+  generator property, golden byte-mutation never-panic property, stress (100k-wide and
+  10k-deep documents, iterative traversals), RSS memory gate (build peak ≈ 2 × package
+  size vs 8 × budget).
+- Criterion benchmark `document/build` (baselines in PERFORMANCE.md §6).
+
 ### Added (Phase 4.1 — glyphcull-core reader)
 
 - `glyphcull-core` workspace member: the platform-agnostic compiled-document runtime

@@ -81,21 +81,20 @@ pub fn build_package(sections: &[TestSection]) -> Vec<u8> {
 /// The INFO payload in the deterministic JSON subset (SPEC.md §2.1): keys
 /// sorted lexicographically, no whitespace, minimal escaping.
 pub fn info_payload() -> Vec<u8> {
+    info_payload_counts(0, 0, 0, 0, 0)
+}
+
+/// The INFO payload with explicit section counts.
+pub fn info_payload_counts(
+    chunk_count: u32,
+    style_count: u32,
+    content_count: u32,
+    atlas_count: u32,
+    image_count: u32,
+) -> Vec<u8> {
     let source_digest = "00".repeat(32);
     let json = format!(
-        concat!(
-            "{{\"atlas_count\":0,",
-            "\"chunk_count\":0,",
-            "\"content_count\":0,",
-            "\"document_id\":\"0123456789abcdef0123456789abcdef\",",
-            "\"format_version\":1,",
-            "\"generator\":\"test-builder\",",
-            "\"generator_version\":\"0.0.0\",",
-            "\"image_count\":0,",
-            "\"source_digest\":\"{}\",",
-            "\"style_count\":0}}"
-        ),
-        source_digest
+        "{{\"atlas_count\":{atlas_count},\"chunk_count\":{chunk_count},\"content_count\":{content_count},\"document_id\":\"0123456789abcdef0123456789abcdef\",\"format_version\":1,\"generator\":\"test-builder\",\"generator_version\":\"0.0.0\",\"image_count\":{image_count},\"source_digest\":\"{source_digest}\",\"style_count\":{style_count}}}"
     );
     json.into_bytes()
 }
@@ -109,6 +108,7 @@ pub fn empty_chnk_payload() -> Vec<u8> {
 }
 
 /// A chunk record to encode (SPEC.md §2.2).
+#[derive(Clone, Debug, Default)]
 pub struct TestChunk {
     pub id: u32,
     pub kind: u8,
@@ -159,6 +159,50 @@ pub fn extra_bytes(chunk_id: u32, kind: u8, data: &[u8]) -> Vec<u8> {
     out.push(0); // flags
     out.extend_from_slice(&(data.len() as u16).to_le_bytes());
     out.extend_from_slice(data);
+    out
+}
+
+/// Encode a text/image-ref CONT payload section (SPEC.md §2.4).
+pub fn cont_payload(texts: &[&str], image_refs: &[u32]) -> Vec<u8> {
+    let mut payloads: Vec<(u8, Vec<u8>)> = Vec::new(); // (kind, data)
+    for text in texts {
+        payloads.push((0, text.as_bytes().to_vec()));
+    }
+    for &image_id in image_refs {
+        payloads.push((1, image_id.to_le_bytes().to_vec()));
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&(payloads.len() as u32).to_le_bytes());
+    for (i, (kind, data)) in payloads.iter().enumerate() {
+        out.extend_from_slice(&(i as u32).to_le_bytes()); // id
+        out.push(*kind);
+        out.push(0); // flags
+        out.extend_from_slice(&0u16.to_le_bytes()); // reserved
+        out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        out.extend_from_slice(data);
+    }
+    out
+}
+
+/// Encode a STYL payload from `(property_count, blob)` records with dense
+/// ids `0..records.len()` (SPEC.md §2.3).
+pub fn styl_payload(records: &[(u16, Vec<u8>)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(records.len() as u32).to_le_bytes());
+    for (i, (count, blob)) in records.iter().enumerate() {
+        out.extend_from_slice(&(i as u32).to_le_bytes()); // id
+        out.extend_from_slice(&count.to_le_bytes());
+        out.extend_from_slice(&(blob.len() as u16).to_le_bytes());
+        out.extend_from_slice(blob);
+    }
+    out
+}
+
+/// Encode one STYL property: `u16 tag` + fixed-size value bytes.
+pub fn style_prop(tag: u16, value: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&tag.to_le_bytes());
+    out.extend_from_slice(value);
     out
 }
 

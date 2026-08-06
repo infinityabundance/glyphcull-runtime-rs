@@ -24,10 +24,13 @@
 //!   table validation, zlib with explicit header/Adler-32 verification,
 //!   per-section CRC-32, typed section decoders (INFO/CHNK/STYL/CONT/GLYF/
 //!   IMGS/SEAL), and mandatory SEAL verification.
+//! - [`document`] — the trusted document model: load-time chunk-graph
+//!   invariant validation, style resolution with SPEC §2.3 defaults, and
+//!   content/reference resolution.
 //!
-//! Subsequent phases add the document model, chunk lifecycle, visibility,
-//! materialization, layout, glyph cache, selection, and the draw list as
-//! sibling modules (see `ROADMAP.md` 4.2–4.8).
+//! Subsequent phases add the chunk lifecycle, visibility, materialization,
+//! layout, glyph cache, selection, and the draw list as sibling modules (see
+//! `ROADMAP.md` 4.3–4.8).
 //!
 //! # Guarantees
 //!
@@ -38,6 +41,7 @@
 //!   output paths; identical input ⇒ identical behavior.
 //! - **Memory-safe.** `unsafe` is forbidden workspace-wide.
 
+pub mod document;
 pub mod error;
 pub mod limits;
 pub mod reader;

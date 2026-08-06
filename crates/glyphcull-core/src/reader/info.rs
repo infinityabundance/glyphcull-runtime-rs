@@ -6,6 +6,7 @@
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::limits::MAX_INFO_LEN;
+use crate::reader::VERSION;
 
 /// INFO metadata (SPEC.md §2.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,7 +113,35 @@ pub fn decode(payload: &[u8]) -> Result<Info> {
             }
         }
     }
+    // Mirror the JS reader: format_version must equal the header version, and
+    // the two digests are hex of the SPEC-pinned lengths (SPEC.md §2.1).
+    if info.format_version != VERSION as u32 {
+        return Err(Error::new(
+            ErrorKind::UnsupportedVersion,
+            format!("INFO format_version {} != {}", info.format_version, VERSION),
+        ));
+    }
+    if !is_lower_hex(&info.source_digest, 64) {
+        return Err(Error::new(
+            ErrorKind::InvalidValue,
+            "INFO: source_digest must be 64 lowercase hex chars",
+        ));
+    }
+    if !is_lower_hex(&info.document_id, 32) {
+        return Err(Error::new(
+            ErrorKind::InvalidValue,
+            "INFO: document_id must be 32 lowercase hex chars",
+        ));
+    }
     Ok(info)
+}
+
+/// Whether `value` is exactly `len` lowercase hex characters.
+fn is_lower_hex(value: &str, len: usize) -> bool {
+    value.len() == len
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 /// A JSON value in the INFO subset: a string or an integer.

@@ -1,7 +1,7 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phase 4.1 landed (reader). The pyramid below is the target for Phase 4; the
-reader layers are delivered (see `crates/glyphcull-core/tests/`).
+Status: Phases 4.1–4.2 landed (reader, document model). The pyramid below is the target for
+Phase 4; the reader and document layers are delivered (see `crates/glyphcull-core/tests/`).
 
 ## 1. Principles
 
@@ -19,6 +19,11 @@ reader layers are delivered (see `crates/glyphcull-core/tests/`).
   golden package errors); CRC-32 known-answer vectors; zlib round-trip + size limits; SEAL
   pass/fail.
 - **core/document**: chunk tree invariants; style defaults; content reference resolution.
+  Delivered: `tests/document_model.rs` (golden contract + every invariant rejection),
+  `tests/document_property.rs` (random-tree generator: every generated tree builds, walk is
+  a bijection, depths consistent; golden byte-mutations never panic), `tests/document_stress.rs`
+  (100k-chunk wide + 10k-deep documents, iterative traversals), `tests/document_memory.rs`
+  (RSS gate: build peak ≈ 2 × package size vs 8 × budget).
 - **core/lifecycle**: exhaustive transition table; guards both ways; transition log;
   injected-clock cooling; invalid-transition rejection.
 - **core/visibility**: culling decisions (margin, semantic flags, direction); culling does

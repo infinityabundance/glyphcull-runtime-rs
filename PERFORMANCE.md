@@ -51,6 +51,23 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.2 — glyphcull-core document model (committed benchmarks + memory gate)
+
+Same environment as 4.1. The model borrows the package's decoded payloads, so build cost
+is validation + style resolution, not data copying.
+
+| Benchmark | Time |
+|---|---|
+| `document/build/golden-22-chunks` (parse + build + walks) | 748 µs |
+| `document/build/wide-100k-chunks` (parse + build + walk) | 19.2 ms |
+
+Memory: `tests/document_memory.rs` measures the RSS high-water delta over 25 parse+build
+iterations of the 855 KiB golden: **peak ≈ 1.63 MiB ≈ 2 × package size** (gate: 8 ×
+package size) — the borrowed-model design adds the resolved style table only.
+
+Commands: `cargo bench -p glyphcull-core --bench document_build`,
+`cargo test --test document_memory -- --nocapture`.
+
 ### 4.1 — glyphcull-core reader (committed benchmarks + memory gate)
 
 Environment: AMD Ryzen 7 9800X3D (8 cores / 16 threads), Linux 7.1.4 (CachyOS), rustc
