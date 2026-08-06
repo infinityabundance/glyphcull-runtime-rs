@@ -72,7 +72,13 @@ Phase 4; those layers are delivered (see `crates/glyphcull-core/tests/`).
   a `br` document; block-span copy equivalence property), `tests/selection_property.rs`
   (300-case proptests: comparison antisymmetry, normalization ordering, copyText
   determinism, covered-id slice equality).
-- **core/draw list**: batching, z-order, determinism (double-build equality).
+- **core/draw list**: batching, z-order, determinism (double-build equality). Delivered:
+  `tests/draw_list.rs` (JS-mirror vectors: double-build byte equality, selection
+  z-order beneath content, glyph command geometry + px-range input, one command per
+  laid-out outlined glyph plus list markers, marker emission from the bullet stamp,
+  ruler pass-through, missing-stamp resilience incl. partial coverage, repeated-build
+  stability — plus the R5 divergence pins for container-nested images and rules — and a
+  100-case proptest over random visible subsets and selection quads).
 - **render**: shader math unit tests (median-of-three coverage vs analytic), DPR mapping,
   texture budget, device-loss recovery path, WebGPU/GL parity fixtures.
 - **wasm**: binding contract tests; budget reporting; destroyed-handle errors.

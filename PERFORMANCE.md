@@ -1,9 +1,9 @@
 # Performance — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.7 landed (reader, document model, lifecycle, visibility,
-materialization, layout, glyph cache, selection). Budgets declared; baselines measured per
-phase. No premature optimization: deterministic architecture, then profile, measure,
-optimize on evidence.
+Status: Phases 4.1–4.8 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection, draw list). Budgets declared; baselines
+measured per phase. No premature optimization: deterministic architecture, then profile,
+measure, optimize on evidence.
 
 ## 1. Objectives
 
@@ -52,6 +52,21 @@ and bounded memory from the start:
   document size.
 
 ## 6. Evidence log
+
+### 4.8 — glyphcull-core draw list (committed benchmarks)
+
+Same environment as 4.1. The benchmark builds the full-document draw list over the
+laid-out golden (the per-frame hot path), with and without selection quads.
+
+| Benchmark | Time |
+|---|---|
+| `draw-list/full-doc-no-selection` | 845 ns |
+| `draw-list/full-doc-with-selection` | 876 ns |
+
+The draw list is bounded by the visible content (never the document size); the
+repeated-build stability test and the random-subset proptest pin determinism.
+
+Commands: `cargo bench -p glyphcull-core --bench draw_list_golden`.
 
 ### 4.7 — glyphcull-core glyph cache + selection (committed benchmarks)
 

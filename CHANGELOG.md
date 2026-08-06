@@ -4,6 +4,23 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.8 — glyphcull-core draw list)
+
+- `glyphcull-core::draw_list` — the ordered draw command sequence mirroring the JS
+  `src/render/drawlist.ts`: `GlyphCommand` (texture, UV, quad, color, px-per-texel for
+  the shader's px range), `ImageCommand`, `FillCommand` (selection + backgrounds),
+  `RulerCommand`, the `DrawCommand` enum, `DrawList`, the `TextureResolver` trait, and
+  `DrawListBuilder` (selection fills first beneath content; per block background →
+  line glyphs → list marker → children; the visible-set `emitted` guard emits every
+  block exactly once; missing stamps are skipped mid-flight). Markers render as glyph
+  commands from the disc/alpha/roman stamp.
+- The builder is a pure function of its inputs; double-build equality is pinned by
+  tests, as is the R5 divergence (container-nested images and rules render — the JS
+  children path drops them).
+- Test suites: `tests/draw_list.rs` (JS-mirror vectors, R5 pins, repeated-build
+  stability, 100-case subset/selection proptest) and the criterion benchmark
+  `draw_list` (baselines in PERFORMANCE.md §6).
+
 ### Added (Phase 4.7 — glyphcull-core glyph cache + selection)
 
 - `glyphcull-core::glyphs` — the glyph cache mirroring the JS `src/glyphs/cache.ts`:
@@ -164,6 +181,6 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ### Planned (Phase 4 — per master plan)
 
-- glyphcull-core (draw list); glyphcull-render (wgpu: WebGPU +
+- glyphcull-render (wgpu: WebGPU +
   GL fallback, MSDF); glyphcull-wasm (tiny API bindings); glyphcull-desktop (native
   host); mobile targets.

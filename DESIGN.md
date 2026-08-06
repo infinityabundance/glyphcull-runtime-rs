@@ -1,7 +1,7 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.7 landed (glyphcull-core reader, document model, lifecycle,
-visibility, materialization, layout, and glyph cache/selection). Decisions with
+Status: Phases 4.1–4.8 landed (glyphcull-core reader, document model, lifecycle,
+visibility, materialization, layout, glyph cache/selection, and draw list). Decisions with
 rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are marked
 (mirrors JS Dn); decisions specific to Rust/wgpu are new.
 
@@ -291,3 +291,14 @@ reproduce a JS defect, each pinned by a test.
 - `GlyphCache::new(budget_bytes: u64)` cannot express a negative or NaN budget, so the
   JS `RangeError` on invalid budgets is unrepresentable; a zero budget is valid and
   evicts every stamp on insert (pinned by the in-crate unit test).
+
+### R5. Container-nested images and rules render (draw list)
+
+- The JS `emitBlockLayout` (the children path of `DrawListBuilder`) duplicates
+  `emitBlock`'s body but drops the ruler/image branches, so an image or `hr` nested
+  inside a quote, list item, or table cell emits no quad (images inside paragraphs
+  still render, because text blocks keep no children). The Rust builder shares one
+  emission body between both paths, so nested images and rules emit exactly once
+  (the visible-set `emitted` guard prevents doubles). Pinned by
+  `tests/draw_list.rs::nested_image_inside_a_quote_renders…` and
+  `nested_hr_inside_a_list_item_renders…`.

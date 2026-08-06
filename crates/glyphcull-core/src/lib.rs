@@ -50,9 +50,9 @@
 //! - [`selection`] — logical selection: document-order positions, hit
 //!   testing, range→quad projection, and plain-text copy with the documented
 //!   boundary policy — pure functions of (document, layout, selection).
-//!
-//! Subsequent phases add the draw list as a sibling module (see `ROADMAP.md`
-//! 4.8).
+//! - [`draw_list`] — the ordered draw command sequence (glyphs, images,
+//!   fills, rulers) produced deterministically from the visible set, layout
+//!   records, glyph stamps, and selection quads.
 //!
 //! # Guarantees
 //!
@@ -65,6 +65,7 @@
 
 pub mod clock;
 pub mod document;
+pub mod draw_list;
 pub mod error;
 pub mod glyphs;
 pub mod layout;

@@ -1,10 +1,10 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.7 landed (glyphcull-core reader + document model + lifecycle +
-visibility + materialization + layout + glyph cache/selection); living document, updated
-as each crate lands. This runtime mirrors `glyphcull-runtime-js` exactly in architecture
-— subsystem responsibilities, state machines, and data flow are identical; only
-implementation differs.
+Status: Phases 4.1–4.8 landed (glyphcull-core reader + document model + lifecycle +
+visibility + materialization + layout + glyph cache/selection + draw list); living
+document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
+exactly in architecture — subsystem responsibilities, state machines, and data flow are
+identical; only implementation differs.
 
 ## 1. Position
 
@@ -195,8 +195,23 @@ are resolved in the package.
 - Offsets are char-based, not UTF-16 (DESIGN.md R3).
 
 ### 3.9 draw list
-- Ordered, batched command sequence (glyph runs, image quads, selection quads,
-  backgrounds), produced deterministically from the visible set.
+
+**Delivered (4.8).** `glyphcull-core::draw_list` — the ordered, batched command sequence
+produced deterministically from the visible set + layout records + glyph stamps + selection
+quads (mirrors the JS `src/render/drawlist.ts`).
+
+- Commands: `glyph` (texture, UV, quad, color, px-per-texel for the shader's px range),
+  `image`, `fill` (selection + backgrounds), `ruler`. Z-order is command order:
+  selection fills first, then per block background → line glyphs → list marker (as
+  glyphs from the disc/alpha/roman stamp) → children.
+- Emission guard: the visible set contains nested ids too; a `BTreeSet` marks each
+  emitted subtree so every block emits exactly once (a nested id whose ancestors are
+  absent still emits its own subtree). Missing stamps are skipped (the scheduler is
+  mid-flight); markers, backgrounds, rulers, and images are block geometry and render
+  regardless.
+- The builder is a pure function of its inputs — double-build equality is a test
+  invariant. **Divergence**: container-nested images and rules render (DESIGN.md R5;
+  the JS children path drops them).
 
 ## 4. Renderer (glyphcull-render)
 

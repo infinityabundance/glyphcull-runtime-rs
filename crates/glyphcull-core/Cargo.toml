@@ -37,3 +37,7 @@ harness = false
 [[bench]]
 name = "glyph_selection"
 harness = false
+
+[[bench]]
+name = "draw_list_golden"
+harness = false
