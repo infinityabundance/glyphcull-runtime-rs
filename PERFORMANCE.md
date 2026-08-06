@@ -51,6 +51,13 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.3 — glyphcull-core chunk lifecycle (no benchmark: trivially bounded)
+
+State transitions are O(log n) map operations with no allocation-sensitive path; the
+materializer (4.5) is where budget behavior is measured. Determinism and guard coverage
+are enforced by `tests/lifecycle.rs` (exhaustive table + 300-case model-based property
+run).
+
 ### 4.2 — glyphcull-core document model (committed benchmarks + memory gate)
 
 Same environment as 4.1. The model borrows the package's decoded payloads, so build cost

@@ -27,10 +27,15 @@
 //! - [`document`] — the trusted document model: load-time chunk-graph
 //!   invariant validation, style resolution with SPEC §2.3 defaults, and
 //!   content/reference resolution.
+//! - [`clock`] — the injected clock: the determinism seam for all time-based
+//!   decisions (`RealClock` in production, `FakeClock` in tests).
+//! - [`lifecycle`] — the chunk lifecycle state machine: six explicit states,
+//!   guarded transitions, transition log, selection pins, hidden-chunk and
+//!   cooling-period guards.
 //!
-//! Subsequent phases add the chunk lifecycle, visibility, materialization,
-//! layout, glyph cache, selection, and the draw list as sibling modules (see
-//! `ROADMAP.md` 4.3–4.8).
+//! Subsequent phases add visibility, materialization, layout, glyph cache,
+//! selection, and the draw list as sibling modules (see `ROADMAP.md`
+//! 4.4–4.8).
 //!
 //! # Guarantees
 //!
@@ -41,7 +46,9 @@
 //!   output paths; identical input ⇒ identical behavior.
 //! - **Memory-safe.** `unsafe` is forbidden workspace-wide.
 
+pub mod clock;
 pub mod document;
 pub mod error;
+pub mod lifecycle;
 pub mod limits;
 pub mod reader;

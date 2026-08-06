@@ -1,7 +1,7 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.2 landed (glyphcull-core reader + document model); living
-document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
+Status: Phases 4.1–4.3 landed (glyphcull-core reader + document model + lifecycle);
+living document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
 exactly in architecture — subsystem responsibilities, state machines, and data flow
 are identical; only implementation differs.
 
@@ -97,9 +97,18 @@ package, mirroring the JS `DocumentModel`. **No geometry lives here**.
 - Eviction: Visible → Cooling → Evicted with a cooling period; LRU-with-age, deterministic.
 
 ### 3.5 lifecycle
-- The chunk lifecycle state machine — identical states and transitions to the JS runtime:
-  Compressed → Queued → Materializing → Visible → Cooling → Evicted. Transition log with
-  injected clock for tests.
+
+**Delivered (4.3).** `glyphcull-core::lifecycle` — the chunk lifecycle state machine,
+identical states and transitions to the JS runtime: Compressed → Queued → Materializing →
+Visible → Cooling → Evicted.
+
+- Guarded transitions (`hidden` never enqueues; `expire` needs the cooling period elapsed
+  and no selection pin), transition log with the injected clock
+  (`glyphcull-core::clock`: `RealClock`/`FakeClock`), selection pins, per-chunk cooling
+  periods.
+- All per-chunk tables are `BTreeMap`s — enumeration is deterministic (ascending chunk
+  id). Model-based property tests drive random event sequences against a reference
+  transition table.
 
 ### 3.6 layout
 - UAX #29 word boundaries; Knuth–Plass line breaking; block layout; tables (colspan/

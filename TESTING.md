@@ -1,7 +1,8 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.2 landed (reader, document model). The pyramid below is the target for
-Phase 4; the reader and document layers are delivered (see `crates/glyphcull-core/tests/`).
+Status: Phases 4.1–4.3 landed (reader, document model, lifecycle). The pyramid below is the
+target for Phase 4; the reader, document, and lifecycle layers are delivered (see
+`crates/glyphcull-core/tests/`).
 
 ## 1. Principles
 
@@ -25,7 +26,10 @@ Phase 4; the reader and document layers are delivered (see `crates/glyphcull-cor
   (100k-chunk wide + 10k-deep documents, iterative traversals), `tests/document_memory.rs`
   (RSS gate: build peak ≈ 2 × package size vs 8 × budget).
 - **core/lifecycle**: exhaustive transition table; guards both ways; transition log;
-  injected-clock cooling; invalid-transition rejection.
+  injected-clock cooling; invalid-transition rejection. Delivered: `tests/lifecycle.rs`
+  (6 × 9 exhaustive table vs a reference model, cooling-elapsed/selection/hidden guards,
+  ordered log with injected timestamps, log determinism, state census, idempotent
+  registration, and a 300-case model-based property test over random event sequences).
 - **core/visibility**: culling decisions (margin, semantic flags, direction); culling does
   not mutate materialization state (boundary assertion).
 - **core/materialize**: priority order; budget yield; eviction order; no starvation.

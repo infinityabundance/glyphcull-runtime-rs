@@ -128,6 +128,23 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   and `build_document(package)` returns a model that borrows it, which is exactly the
   JS ownership shape.
 
+## D18. The clock is borrowed, not owned (lifecycle)
+
+- `LifecycleManager<'a, C: Clock>` holds `&'a C`, and `FakeClock` uses `Cell<u64>` so
+  tests can advance time through the same shared reference the manager reads — the exact
+  shape of the JS runtime, which passes the clock object by reference.
+- **Rationale**: the clock is the determinism seam; owning it would fork time between the
+  manager and its caller.
+
+## D19. Deterministic enumeration in the lifecycle (lifecycle)
+
+- All per-chunk tables are `BTreeMap<u32, _>` (ascending id), so `chunks_in_state` and
+  `cooling_remaining` are deterministic — the JS `Map` gives insertion order, which is
+  deterministic too, but id order is stronger (independent of call history).
+- `cooling_remaining` treats a backwards wall clock as zero elapsed time
+  (`saturating_sub`), which is strictly safer for eviction than the JS arithmetic
+  artifact.
+
 ## D17. Iterative document traversals (document model)
 
 - `all_ids` and `plain_text` use an explicit stack instead of recursion (the JS

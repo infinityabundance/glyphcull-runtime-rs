@@ -4,6 +4,20 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.3 — glyphcull-core chunk lifecycle)
+
+- `glyphcull-core::clock` — the injected clock: `Clock` trait, `RealClock` (wall),
+  `FakeClock` (deterministic, interior-mutable so the manager can share it by reference).
+- `glyphcull-core::lifecycle` — the chunk lifecycle state machine mirroring the JS
+  runtime: six states, nine guarded events (hidden chunks never enqueue; expire needs the
+  cooling period elapsed and no selection pin), `BTreeMap`-backed per-chunk tables
+  (deterministic enumeration), and an ordered transition log stamped by the injected
+  clock.
+- Lifecycle test suite: exhaustive 6×9 transition table against a reference model, guard
+  tests (cooling period, selection pins, hidden chunks), log order/determinism, state
+  census, idempotent registration, and a 300-case model-based proptest over random event
+  sequences.
+
 ### Added (Phase 4.2 — glyphcull-core document model)
 
 - `glyphcull-core::document` — the trusted runtime view of a package (mirrors the JS

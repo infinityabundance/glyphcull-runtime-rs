@@ -9,7 +9,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       SEAL; malformed corpus + truncation tests; contract tests against compiler golden
       fixtures.
 - [x] **4.2 glyphcull-core/document**: Document model; load-time validation.
-- [ ] **4.3 glyphcull-core/lifecycle**: chunk lifecycle state machine; transition log;
+- [x] **4.3 glyphcull-core/lifecycle**: chunk lifecycle state machine; transition log;
       property tests; injected clock.
 - [ ] **4.4 glyphcull-core/visibility**: viewport + semantic culling; determinism tests.
 - [ ] **4.5 glyphcull-core/materialize**: priority queue; budgets; cooperative scheduling;
