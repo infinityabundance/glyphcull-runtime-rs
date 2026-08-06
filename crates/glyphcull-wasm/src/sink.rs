@@ -2,14 +2,14 @@
 //! to the renderer and plays render plans back into the canvas surface.
 //!
 //! RGB8 images are padded to RGBA8 at upload (wgpu has no RGB8 texture
-//! format); the surface is configured with a non-sRGB format (DESIGN.md D28)
-//! matching the renderer's pipeline.
+//! format; the shared `glyphcull_host::pad_rgb8_to_rgba8` does the padding);
+//! the surface is configured with a non-sRGB format (DESIGN.md D28) matching
+//! the renderer's pipeline.
 
-use glyphcull_core::reader::image::ImageFormat;
 use glyphcull_render::plan::{RenderPlan, RendererViewport};
 use glyphcull_render::renderer::{Renderer, DEFAULT_TEXTURE_BUDGET};
 
-use crate::host::FrameSink;
+use glyphcull_host::FrameSink;
 
 /// The wgpu host sink (WebGPU backend in the browser; GL on native).
 pub struct WgpuSink {
@@ -73,11 +73,7 @@ impl FrameSink for WgpuSink {
     ) -> u32 {
         if rgb {
             // RGB8 → RGBA8 (alpha 255): wgpu has no RGB8 texture format.
-            let mut rgba = Vec::with_capacity(pixels.len() / 3 * 4);
-            for chunk in pixels.chunks_exact(3) {
-                rgba.extend_from_slice(chunk);
-                rgba.push(255);
-            }
+            let rgba = glyphcull_host::pad_rgb8_to_rgba8(pixels);
             self.renderer.upload_image(image_id, &rgba, width, height)
         } else {
             self.renderer.upload_image(image_id, pixels, width, height)
@@ -122,14 +118,5 @@ impl FrameSink for WgpuSink {
 
     fn destroy(&mut self) {
         self.renderer.destroy();
-    }
-}
-
-/// Convenience: the image format flag for the sink upload.
-#[must_use]
-pub const fn image_is_rgb(format: ImageFormat) -> bool {
-    match format {
-        ImageFormat::Rgb8 => true,
-        ImageFormat::Rgba8 => false,
     }
 }

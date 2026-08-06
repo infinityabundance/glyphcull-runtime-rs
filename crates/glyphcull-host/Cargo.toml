@@ -1,0 +1,19 @@
+[package]
+name = "glyphcull-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "GlyphCull document host: the platform-agnostic six-operation runtime (load/scroll/paint/select/copy/destroy) shared by the wasm and desktop bindings."
+keywords = ["document", "gpu", "runtime", "compiled", "renderer"]
+categories = ["rendering", "graphics", "wasm"]
+
+[lints]
+workspace = true
+
+[dependencies]
+glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
+glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
+ouroboros = "0.18"

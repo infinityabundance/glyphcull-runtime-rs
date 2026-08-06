@@ -29,9 +29,11 @@ crates/
                         layout, glyph cache, selection, draw list. Platform-agnostic.
   glyphcull-render/   — wgpu renderer: WebGPU backend, GL (WebGL2) fallback; MSDF shaders;
                         texture management; draw list executor.
-  glyphcull-wasm/     — wasm32 bindings exposing the identical tiny API
-                        (load/scroll/paint/select/copy/destroy).
-  glyphcull-desktop/  — native host application (winit + wgpu).
+  glyphcull-host/     — the six-operation document host (load/scroll/paint/select/copy/
+                        destroy) shared by the wasm and desktop bindings.
+  glyphcull-wasm/     — wasm32 bindings exposing the identical tiny API.
+  glyphcull-desktop/  — native host application (winit + wgpu); `glyphcull-desktop <file.cull>`
+                        opens a compiled document in a window.
 ```
 
 ## The runtime is not a browser

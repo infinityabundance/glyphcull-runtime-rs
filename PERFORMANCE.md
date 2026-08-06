@@ -53,6 +53,19 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.11 — glyphcull-desktop host (no benchmark: glue + one blocked init)
+
+Same environment as 4.1. The desktop host adds no per-frame hot path of its own: input
+translation is pure arithmetic, the paint path is the measured render-plan pipeline, and
+wgpu submits on the GPU (frame cost measured on real hardware at the demo repo). The one
+notable cost is `DesktopDocument::load`'s blocked adapter/device initialization (once per
+window, in `resumed`) — bounded, and the platform requires a window before the compatible
+adapter can be requested.
+
+Memory: identical discipline to 4.10 (the host crate is the same code, re-homed); the
+window's `Arc` is shared between the app and the surface (two refs), and the surface's
+internal copy keeps it alive for the sink's lifetime.
+
 ### 4.10 — glyphcull-wasm host (no benchmark: pure glue over measured subsystems)
 
 Same environment as 4.1. The host adds no new hot path of its own: per call it runs the

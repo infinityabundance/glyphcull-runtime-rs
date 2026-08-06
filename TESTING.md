@@ -1,8 +1,8 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.10 landed (reader, document model, lifecycle, visibility,
-materialization, layout, glyph cache, selection, draw list, render, wasm host). The
-pyramid below is the target for Phase 4; those layers are delivered (see
+Status: Phases 4.1–4.11 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection, draw list, render, wasm host, desktop
+host). The pyramid below is the target for Phase 4; those layers are delivered (see
 `crates/*/tests/`).
 
 ## 1. Principles
@@ -97,7 +97,10 @@ pyramid below is the target for Phase 4; those layers are delivered (see
   recording sink — `tests/host.rs` (load validation, upload census, scroll/paint/resize,
   select-and-copy round-trips, destroy semantics, multi-document isolation, selection
   pinning); no wasm, no GPU.
-- **desktop**: input→API wiring tests (with a headless harness where the host allows).
+- **desktop**: input translation (`tests/desktop.rs` + `input` unit tests: wheel/drag/
+  resize math, typed error contract) and the shared host suite in `glyphcull-host`; the
+  window/GPU path is exercised by the `glyphcull-desktop` binary (needs a display
+  server) and the demo repo's rendering validation.
 
 ### Integration
 

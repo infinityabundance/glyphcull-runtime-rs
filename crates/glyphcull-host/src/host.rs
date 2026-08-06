@@ -1,8 +1,8 @@
 //! The platform-agnostic document host (mirrors the JS `DocumentHost` in
 //! `src/api/runtime.ts`): wires the core pipeline — layout, glyph cache,
 //! lifecycle, scheduler, draw list, selection — behind the tiny six-operation
-//! contract, against a pluggable [`FrameSink`] (the wgpu host on wasm; a
-//! recording stub in native tests).
+//! contract, against a pluggable [`FrameSink`] (the wgpu sink on wasm and
+//! desktop; a recording stub in native tests).
 //!
 //! Ownership (DESIGN.md D29): the model borrows the package and the layout
 //! engine borrows the model, so the host is a self-referential struct
@@ -11,7 +11,7 @@
 //! JS passing the clock by reference). The cooperative budget is inherent:
 //! `scroll` runs one bounded `run_frame` per call (no threads in wasm32).
 //!
-//! Everything here is native-testable — no wasm-bindgen, no GPU.
+//! Everything here is native-testable — no wasm-bindgen, no winit, no GPU.
 
 // The ouroboros macro generates a constructor (and builder) mirroring every
 // field; with sixteen fields it exceeds clippy's style threshold. The lint is
@@ -411,7 +411,7 @@ impl HostDocument {
                     &image.data,
                     u32::from(image.width),
                     u32::from(image.height),
-                    crate::sink::image_is_rgb(image.format),
+                    crate::image_is_rgb(image.format),
                 );
                 fields.image_handles.insert(image.id, handle);
             }

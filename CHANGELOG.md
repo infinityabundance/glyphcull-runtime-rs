@@ -4,6 +4,33 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.11 — glyphcull-desktop, winit host)
+
+- `glyphcull-host` workspace member: the platform-agnostic six-operation document host,
+  extracted from the wasm binding and shared by both hosts (mirrors the JS
+  `src/api/runtime.ts`; DESIGN.md D29): `HostDocument` (ouroboros-pinned
+  `Package → model → layout`), `FrameSink` seam, typed `HostError`s, option validation,
+  the RGB8→RGBA8 padding helper, and the recording-sink test suite (moved with it).
+- `glyphcull-wasm` 0.2.0: now a thin wasm-bindgen layer over `glyphcull-host` — the
+  `WgpuSink` (canvas surface) and the JS handle; the public names are unchanged
+  (re-exported).
+- `glyphcull-desktop` 0.1.0: the winit host — a window serving the identical six-operation
+  API over a wgpu surface.
+  - `DesktopDocument` — window + shared host; the six operations plus the input wiring
+    (wheel → scroll, drag → select, resize → viewport + surface, Esc/close → exit,
+    `RedrawRequested` → paint); blocking wgpu init once in the event loop's `resumed`.
+  - `sink` — the native wgpu `FrameSink`: `Surface<'static>` via the `Arc<Window>`
+    handle (DESIGN.md D30), non-sRGB target (D28), RGB8 padding, per-frame present.
+  - `input` — pure, headless-tested input translation (line/pixel wheel → doc px,
+    physical cursor → doc point, viewport advance with top clamping).
+  - The `glyphcull-desktop` binary — open a `.cull` file in a window (manual harness).
+- CI: Android steps verify library targets only (a bin would need the NDK linker; the
+  mobile host is 4.12).
+- Test suites: `glyphcull-host/tests/host.rs` (the six-operation contract against a
+  recording sink — moved from wasm), host lib unit tests (padding helpers),
+  `glyphcull-desktop/tests/desktop.rs` (typed errors + composed input scenarios) and
+  `input` unit tests.
+
 ### Added (Phase 4.10 — glyphcull-wasm)
 
 - `glyphcull-wasm` workspace member: the wasm host — wasm-bindgen bindings for exactly

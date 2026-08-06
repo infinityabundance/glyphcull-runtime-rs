@@ -27,10 +27,9 @@ use glyphcull_core::reader::parse;
 use glyphcull_core::selection::TextPosition;
 use glyphcull_core::visibility::Viewport;
 
-mod host;
 mod sink;
 
-pub use host::{
+pub use glyphcull_host::{
     validate_options, FrameSink, HostDocument, HostError, HostOptions, DEFAULT_COOLING_MS,
     DEFAULT_FRAME_BUDGET_MS, DEFAULT_GLYPH_BUDGET, DEFAULT_MARGIN,
 };

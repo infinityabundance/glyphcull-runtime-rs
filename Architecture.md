@@ -34,6 +34,10 @@ Pixels
                  └──────────┬──────────┘
                             │
                  ┌──────────▼──────────┐
+                 │  glyphcull-host     │  the six-operation document host (shared)
+                 └──────────┬──────────┘
+                            │
+                 ┌──────────▼──────────┐
                  │  glyphcull-render   │  wgpu: WebGPU backend + GL(WebGL2) fallback
                  └──────────┬──────────┘
                             │  draw list (commands), textures, atlases
@@ -43,8 +47,10 @@ Pixels
 ```
 
 Dependency direction is strictly downward. `glyphcull-core` knows nothing about wgpu, winit,
-or wasm-bindgen; `glyphcull-render` knows nothing about hosts. This is what makes the core
-testable headlessly and portable to every target.
+or wasm-bindgen; `glyphcull-render` knows nothing about hosts; `glyphcull-host` knows nothing
+about winit or wasm-bindgen (it is the JS `src/api/runtime.ts` mirrored as a crate, shared by
+both bindings — DESIGN.md D29). This is what makes the core testable headlessly and portable
+to every target.
 
 ## 3. Subsystems (glyphcull-core)
 
@@ -243,15 +249,25 @@ quads (mirrors the JS `src/render/drawlist.ts`).
 - **wasm** (`glyphcull-wasm`) — **delivered (4.10)**. wasm-bindgen bindings for exactly
   `load/scroll/paint/select/copy/destroy`; `load(bytes, canvas, options)` takes the canvas
   by value so the wgpu surface is `'static` (DESIGN.md D29), and the canvas-dependent path
-  is `#[cfg(web)]` — `host.rs` is platform-agnostic and native-tested against a recording
-  `FrameSink` (no GPU). Cooperative budget per call (no threads in wasm32); the host is a
-  self-referential `Package → model → layout` pipeline (ouroboros), one lifecycle owned by
-  the scheduler, typed errors mirroring the JS `RuntimeError` kinds.
-- **desktop** (`glyphcull-desktop`): winit window + wgpu surface; input (scroll/select)
-  wired to the same API.
-- **mobile**: Android targets (`aarch64-linux-android`, `x86_64-linux-android`) recorded in
-  the workspace; same core, host crate for Android is a future phase candidate (recorded in
-  ROADMAP.md) — the core/render split is what makes this a compile-time story.
+  is `#[cfg(web)]`. Since 0.2.0 the runtime logic lives in `glyphcull-host`; this crate is
+  the thin wasm-bindgen layer (the `WgpuSink` + the JS handle).
+- **desktop** (`glyphcull-desktop`) — **delivered (4.11)**. The winit host: a window that
+  loads a `.cull` package over `glyphcull-host` + a wgpu surface (`Surface<'static>` via
+  the Arc-backed window handle, DESIGN.md D30). Input wiring: wheel → scroll, drag →
+  select, Esc/close → exit; the demo binary (`glyphcull-desktop <file.cull>`) doubles as
+  the manual harness. The `input` module is pure and headless-tested.
+- **mobile**: Android targets (`aarch64-linux-android`, `x86_64-linux-android`) verify
+  crate readiness in CI (library targets — 4.12); the mobile host crate is a future
+  phase candidate (recorded in ROADMAP.md) — the core/render/host split is what makes
+  this a compile-time story.
+
+## 5.1 The shared host (glyphcull-host)
+
+**Delivered (4.10, extracted to its own crate in 4.11).** The platform-agnostic six-operation
+pipeline (`load/scroll/paint/select/copy/destroy`) composed from core + render against a
+pluggable [`FrameSink`], mirroring the JS `src/api/runtime.ts`. Both bindings consume it:
+`glyphcull-wasm` re-exports it, `glyphcull-desktop` drives it from winit. Ownership and the
+sink seam are DESIGN.md D29.
 
 ## 6. Chunk lifecycle (identical to JS runtime)
 

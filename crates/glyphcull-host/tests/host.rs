@@ -25,8 +25,8 @@ use glyphcull_core::reader::chunk::ChunkKind;
 use glyphcull_core::reader::parse;
 use glyphcull_core::selection::TextPosition;
 use glyphcull_core::visibility::Viewport;
+use glyphcull_host::{FrameSink, HostDocument, HostError, HostOptions};
 use glyphcull_render::plan::{PlanOp, RenderPlan, RendererViewport};
-use glyphcull_wasm::{FrameSink, HostDocument, HostError, HostOptions};
 
 const GOLDEN: &[u8] = include_bytes!("../../glyphcull-core/tests/fixtures/pipeline-golden.cull");
 const V1_MINIMAL: &[u8] = include_bytes!("../../glyphcull-core/tests/fixtures/v1-minimal.cull");

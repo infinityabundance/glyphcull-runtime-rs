@@ -27,10 +27,12 @@ jobs:
         run: cargo test --all --all-targets
       - name: Build (wasm32)
         run: cargo build --all --target wasm32-unknown-unknown
+      # Android verifies crate readiness (ROADMAP 4.12): library targets only —
+      # a bin would need the NDK linker, which the CI image does not carry.
       - name: Build (android aarch64)
-        run: cargo build --all --target aarch64-linux-android
+        run: cargo build --lib --all --target aarch64-linux-android
       - name: Build (android x86_64)
-        run: cargo build --all --target x86_64-linux-android
+        run: cargo build --lib --all --target x86_64-linux-android
       - name: Doc build
         run: cargo doc --all --no-deps
       - name: Bench smoke

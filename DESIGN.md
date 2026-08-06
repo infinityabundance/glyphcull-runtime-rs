@@ -268,7 +268,11 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
   and SPIR-V (Vulkan) via naga; the tests validate both translations headlessly. The
   JS's hand-written GLSL expresses the same math.
 
-## D29. The host is a self-referential document pipeline (wasm host)
+## D29. The host is a self-referential document pipeline (glyphcull-host)
+
+The six-operation host lives in its own crate, `glyphcull-host` (the JS
+`src/api/runtime.ts` mirrored as a crate), shared by the wasm and desktop bindings — one
+host, two thin faces.
 
 - **One owned object, not glued lifetimes**: the host pins the borrow chain
   `Package → DocumentModel → LayoutEngine` with `ouroboros` instead of joining three
@@ -285,16 +289,38 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
   function (`prepare_stamps(cache, atlases, record)`) so the borrow checker splits the
   worker's `layout` read from its `cache` write — no interior mutability needed.
 - **The sink is a trait seam**: `FrameSink` (uploads, draw, resize, destroy) is a
-  `Box<dyn FrameSink>`; the wgpu implementation lives in `sink.rs`, and native tests
-  inject a recording sink — the entire host is tested with no wasm and no GPU.
-- **The surface is `'static` by ownership**: `create_surface(SurfaceTarget::Canvas(canvas))`
-  passes the canvas by value — the surface keeps its own copy of the handle, so the
-  returned `Surface<'static>` matches the sink's field. Borrowing the canvas would
-  yield a frame-bound surface that cannot be stored.
-- **`#[cfg(web)]` boundary**: `load` (and its `load_inner`/`parse_options` helpers and
-  the canvas/future imports) are gated on `web`; `host.rs` is platform-agnostic and
-  compiles on native and Android. CI builds native (tests), wasm32, and both Android
-  ABIs from the same workspace member.
+  `Box<dyn FrameSink>`; each binding supplies a wgpu implementation (canvas / window),
+  and native tests inject a recording sink — the entire host is tested with no GPU.
+- **The surface is `'static` by ownership**: each binding passes its window/canvas
+  handle by value — `SurfaceTarget::Canvas(canvas)` on web, `SurfaceTarget::Window`
+  with an `Arc<Window>` on desktop (the surface keeps its own copy of the handle
+  alive). Borrowing the handle would yield a frame-bound surface that cannot be
+  stored.
+- **`#[cfg(web)]` boundary**: the wasm binding's `load` (and its helpers and the
+  canvas/future imports) are gated on `web`; the host crate itself is
+  platform-agnostic and compiles on native, wasm32, and both Android ABIs.
+
+## D30. The desktop host (winit)
+
+- **`Surface<'static>` via `Arc<Window>`**: winit's `Window` is not `Clone`, and its
+  `WindowHandle` impls live on the concrete type. The desktop sink therefore owns an
+  `Arc<Window>` (winit windows are `Send + Sync` on the supported desktop platforms,
+  satisfying wgpu's `WindowHandle` supertraits on native), and `create_surface` takes
+  it by value — `Surface<'static>`, exactly like the wasm canvas (D29). The
+  application keeps its own `Arc` clone for input, and the surface's internal copy
+  keeps the window alive for the sink's lifetime.
+- **Events → operations, purely**: the `input` module translates winit events into
+  document-space operations with pure functions (line/pixel wheel deltas → doc px,
+  physical cursor → doc point, viewport advance with top clamping) — headless-tested.
+  The event loop itself is a thin `ApplicationHandler`: wheel → `scroll`, drag →
+  `select_point`/`select_between`, resize → viewport + surface reconfigure, Esc/close
+  → exit, `RedrawRequested` → `paint`.
+- **Blocking init once**: wgpu adapter/device setup is async; `DesktopDocument::load`
+  blocks on it with `pollster` inside the event loop's `resumed` (the platform
+  requires a window before the adapter can be requested compatibly).
+- **Android readiness**: winit's `android-native-activity` backend (pure Rust — no NDK
+  games SDK) keeps the crate compiling for Android; CI verifies the library targets
+  (a bin would need the NDK linker). The mobile host is a future phase (ROADMAP 4.12).
 
 ## R-series: deliberate divergences from the JS runtime (correctness)
 
