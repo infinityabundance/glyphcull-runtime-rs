@@ -18,8 +18,8 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       tables; images; golden layout fixtures (shared with JS runtime).
 - [x] **4.7 glyphcull-core/glyph cache + selection**: budgets; logical selection; copy policy.
 - [x] **4.8 glyphcull-core/draw list**: deterministic batching; serialization for tests.
-- [ ] **4.9 glyphcull-render**: wgpu init lifecycle; WebGPU backend; GL fallback; MSDF
-      shaders (WGSL + GLSL); texture management; device-loss recovery.
+- [x] **4.9 glyphcull-render**: wgpu init lifecycle; WebGPU backend; GL fallback; MSDF
+      shaders (WGSL); texture management; device-loss recovery.
 - [ ] **4.10 glyphcull-wasm**: wasm32 bindings; tiny API; memory budget reporting.
 - [ ] **4.11 glyphcull-desktop**: winit host; input wiring; windowing.
 - [ ] **4.12 Mobile targets**: Android target build verification; mobile host crate recorded

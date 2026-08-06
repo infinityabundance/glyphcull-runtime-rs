@@ -1,9 +1,8 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.8 landed (glyphcull-core reader, document model, lifecycle,
-visibility, materialization, layout, glyph cache/selection, and draw list). Decisions with
-rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are marked
-(mirrors JS Dn); decisions specific to Rust/wgpu are new.
+Status: Phases 4.1–4.9 landed (glyphcull-core complete; glyphcull-render with the wgpu
+MSDF renderer). Decisions with rationale, alternatives, tradeoffs. Decisions that mirror
+the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are new.
 
 ## D1. One architecture, two implementations (mirrors JS D1)
 
@@ -251,6 +250,24 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   `Rc<RefCell>`; the counter is deterministic, allocation-free after setup, and O(log n)
   per operation like the JS `Map`.
 
+## D28. Sampling convention and target formats (render)
+
+- **Pixel-center sampling (DESIGN.md D9)**: the CPU reference samples texel centers at
+  `(i + 0.5)` in texel space. wgpu normalizes the half-texel phase across backends
+  (Vulkan-style), so the WGSL shader samples texel centers directly from the stamp UVs
+  — no shift. The JS WebGL renderer applies a `+0.5/size` UV shift because GLSL's
+  `texture2D` samples at `uv·size − 0.5`; the Canvas 2D fallback is phase-exact. All
+  three agree with the reference within tolerance; pinned by
+  `tests/validation.rs::stamps_and_plan_agree_on_the_sampling_convention`.
+- **Non-sRGB targets**: the pipeline requires a non-sRGB target format so the
+  premultiplied u32 colors and the MSDF distance channels are stored raw (an sRGB
+  target would re-encode the shader output — double-encoding our already-sRGB colors,
+  and gamma-correcting the distance field). This matches the JS WebGL1 renderer's
+  gamma-space blending exactly.
+- **One logical program**: wgpu compiles the single WGSL source to GLSL (gles backend)
+  and SPIR-V (Vulkan) via naga; the tests validate both translations headlessly. The
+  JS's hand-written GLSL expresses the same math.
+
 ## R-series: deliberate divergences from the JS runtime (correctness)
 
 The Rust runtime is a faithful mirror; these are the places it deliberately does not
@@ -302,3 +319,10 @@ reproduce a JS defect, each pinned by a test.
   (the visible-set `emitted` guard prevents doubles). Pinned by
   `tests/draw_list.rs::nested_image_inside_a_quote_renders…` and
   `nested_hr_inside_a_list_item_renders…`.
+
+### R6. Zero reconstruction sizes are unrepresentable (render/msdf)
+
+- The JS `reconstruct` throws a `RangeError` for a zero or fractional output size.
+  Rust's `usize` makes fractions unrepresentable, and a zero dimension yields an
+  empty buffer defensively (the JS contract becomes an early return; pinned by
+  `tests/msdf.rs::a_zero_output_size_is_defensive_empty`).

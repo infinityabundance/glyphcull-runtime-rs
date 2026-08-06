@@ -1,7 +1,6 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.8 landed (glyphcull-core reader + document model + lifecycle +
-visibility + materialization + layout + glyph cache/selection + draw list); living
+Status: Phases 4.1–4.9 landed (glyphcull-core complete + glyphcull-render); living
 document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
 exactly in architecture — subsystem responsibilities, state machines, and data flow are
 identical; only implementation differs.
@@ -215,16 +214,29 @@ quads (mirrors the JS `src/render/drawlist.ts`).
 
 ## 4. Renderer (glyphcull-render)
 
-- **wgpu** with two backends: WebGPU (native + WebGPU browsers) and GL (WebGL2 fallback;
-  WebGL1-capable fallback where feasible).
-- MSDF shader: median-of-three, texel→screen distance conversion via (size × dpr) /
-  texels_per_em, screen-space derivative antialiasing; GLSL + WGSL sources generated from a
-  single logical program (documented mapping).
-- Texture management: atlas pages uploaded once; image payloads uploaded as RGBA/RGB
-  textures; budgeted (max texture bytes) with eviction.
-- Context/device loss: recreate device, re-upload textures, re-paint — transparent to the
-  caller.
-- The draw list is the renderer's only input; the renderer never sees the document model.
+**Delivered (4.9).** `glyphcull-render` — wgpu with the WebGPU (native + browser) and GL
+(WebGL2 via EGL) backends; depends only on `glyphcull-core`'s draw list.
+
+- `msdf` — the normative MSDF reconstruction on the CPU (median, smoothstep, texel→px,
+  bilinear-per-channel coverage, supersampled glyph reconstruction, edge clamping):
+  the single source of truth the shader and the validation share (mirrors the JS
+  `src/render/msdf.ts`).
+- `shader` — one logical WGSL program (median-of-three, 1-device-px edge,
+  premultiplied alpha, document-y-down coordinates); naga translates it to GLSL
+  (GL backend) and SPIR-V (Vulkan), and the tests validate those translations
+  headlessly. This replaces the JS's hand-written GLSL with a single source.
+- `plan` — the pure render plan: a draw list compiled into batched GPU ops
+  (consecutive glyph commands sharing a texture → one draw; fills/rulers/images →
+  single quads) plus the view uniform. Premultiplied colors, dpr-scaled px-range,
+  and z-order are all testable without a GPU.
+- `renderer` — the wgpu executor: init lifecycle (`Renderer::init` for the backends),
+  budgeted textures (atlas pages + images, deduplicated, deterministic oldest-first
+  eviction), device-loss recovery (`on_device_lost` — the host re-creates and
+  re-uploads from the core model), and `draw(plan, target)` with premultiplied-alpha
+  blending against a non-sRGB target (DESIGN.md D28). The host owns the surface.
+- **Sampling convention (D28)**: wgpu normalizes the half-texel phase across
+  backends, so glyph UVs are used as-is and agree with the CPU reference; the JS
+  WebGL renderer applies a `+0.5/size` shift for GLSL's phase. All three agree.
 
 ## 5. Hosts
 

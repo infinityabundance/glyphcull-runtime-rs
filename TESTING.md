@@ -1,8 +1,8 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.7 landed (reader, document model, lifecycle, visibility,
-materialization, layout, glyph cache, selection). The pyramid below is the target for
-Phase 4; those layers are delivered (see `crates/glyphcull-core/tests/`).
+Status: Phases 4.1–4.9 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection, draw list, render). The pyramid below
+is the target for Phase 4; those layers are delivered (see `crates/*/tests/`).
 
 ## 1. Principles
 
@@ -80,7 +80,18 @@ Phase 4; those layers are delivered (see `crates/glyphcull-core/tests/`).
   stability — plus the R5 divergence pins for container-nested images and rules — and a
   100-case proptest over random visible subsets and selection quads).
 - **render**: shader math unit tests (median-of-three coverage vs analytic), DPR mapping,
-  texture budget, device-loss recovery path, WebGPU/GL parity fixtures.
+  texture budget, device-loss recovery path, WebGPU/GL parity fixtures. Delivered:
+  `crates/glyphcull-render/tests/msdf.rs` (JS-mirror vectors: median/smoothstep/texel
+  scaling/coverage incl. the median guard and AA width, the synthetic vertical-edge
+  profile with pinned values, downsampling, page-edge clamping, box-larger-than-page),
+  `tests/plan.rs` (golden pipeline → plan: batching by texture, z-order, premultiplied
+  vertex data, scroll uniform, determinism, one quad per outlined glyph plus markers),
+  `tests/validation.rs` (headless CPU rendering validation: golden glyph reconstruction
+  profile, in-bounds UVs through the full pipeline, and the D28 sampling-convention
+  pin), plus in-crate tests (the WGSL parses/validates and translates to GLSL and SPIR-V
+  via naga; shader math equals the CPU reference; plan unit tests). GPU execution is
+  exercised on the desktop host (4.11); the renderer compiles for native, wasm32, and
+  Android in CI.
 - **wasm**: binding contract tests; budget reporting; destroyed-handle errors.
 - **desktop**: input→API wiring tests (with a headless harness where the host allows).
 

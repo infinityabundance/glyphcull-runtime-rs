@@ -2,8 +2,9 @@
 resolver = "2"
 members = [
     "crates/glyphcull-core",
-    # crates/glyphcull-render, glyphcull-wasm, glyphcull-desktop land with
-    # their phases (4.9–4.11); the members list grows as each crate ships.
+    "crates/glyphcull-render",
+    # crates/glyphcull-wasm, glyphcull-desktop land with their phases (4.10–4.11);
+    # the members list grows as each crate ships.
 ]
 
 [workspace.package]

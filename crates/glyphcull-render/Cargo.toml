@@ -1,0 +1,26 @@
+[package]
+name = "glyphcull-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "GlyphCull render: the wgpu MSDF renderer (WebGPU + GL fallback) that executes the draw list produced by glyphcull-core."
+
+[lints]
+workspace = true
+
+[dependencies]
+bytemuck = "1"
+glyphcull-core = { path = "../glyphcull-core" }
+pollster = "0.4"
+wgpu = { version = "26.0", default-features = true }
+
+[dev-dependencies]
+criterion = "0.5"
+naga = "26"
+
+[[bench]]
+name = "plan_golden"
+harness = false

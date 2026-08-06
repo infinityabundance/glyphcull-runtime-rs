@@ -1,9 +1,9 @@
 # Performance — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.8 landed (reader, document model, lifecycle, visibility,
-materialization, layout, glyph cache, selection, draw list). Budgets declared; baselines
-measured per phase. No premature optimization: deterministic architecture, then profile,
-measure, optimize on evidence.
+Status: Phases 4.1–4.9 landed (reader, document model, lifecycle, visibility,
+materialization, layout, glyph cache, selection, draw list, render). Budgets declared;
+baselines measured per phase. No premature optimization: deterministic architecture,
+then profile, measure, optimize on evidence.
 
 ## 1. Objectives
 
@@ -52,6 +52,25 @@ and bounded memory from the start:
   document size.
 
 ## 6. Evidence log
+
+### 4.9 — glyphcull-render (committed benchmarks, headless)
+
+Same environment as 4.1. The plan benchmark measures the headless hot path (the GPU
+frame cost adds the wgpu submission on the desktop host, measured at 4.11); the MSDF
+benchmark measures the CPU reference reconstruction of a golden glyph.
+
+| Benchmark | Time |
+|---|---|
+| `render-plan/golden-full-pipeline` (parse → layout → draw list → plan) | 759 µs |
+| `render-plan/msdf-reconstruct-glyph-1x1` | 322 µs |
+
+GPU memory: the texture manager is self-limiting by construction (the byte budget,
+`DEFAULT_TEXTURE_BUDGET` 128 MiB, evicts oldest-uploaded textures deterministically).
+The renderer itself cannot run headless in CI — its logic (plan batching, premultiplied
+vertex data, shader translation) is validated by the pure-module suites; GPU execution
+is measured on the desktop host (4.11).
+
+Commands: `cargo bench -p glyphcull-render --bench plan_golden`.
 
 ### 4.8 — glyphcull-core draw list (committed benchmarks)
 

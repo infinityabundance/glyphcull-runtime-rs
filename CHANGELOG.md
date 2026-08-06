@@ -4,6 +4,30 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.9 — glyphcull-render)
+
+- `glyphcull-render` workspace member: the wgpu MSDF renderer (WebGPU + GL/WebGL2
+  backends; naga translates one WGSL program to GLSL and SPIR-V).
+  - `msdf` — the normative CPU reconstruction (median, smoothstep, texel→px, bilinear
+    coverage, supersampled glyph reconstruction, edge clamping) mirroring the JS
+    `src/render/msdf.ts`; the single source of truth for the shader and the
+    validation.
+  - `shader` — one logical WGSL program (median-of-three, 1-device-px edge,
+    premultiplied alpha, document-y-down), validated and translated headlessly via
+    naga (GLSL for the GL backend, SPIR-V for Vulkan).
+  - `plan` — the pure render plan: draw list → batched GPU ops (glyph batches by
+    texture, single quads for fills/rulers/images) + the view uniform; premultiplied
+    colors, dpr-scaled px-range, z-order, and determinism are testable without a GPU.
+  - `renderer` — the wgpu executor: async init lifecycle, budgeted textures with
+    deterministic eviction (DEFAULT_TEXTURE_BUDGET), in-place page refreshes,
+    premultiplied-alpha blending against non-sRGB targets (D28), device-loss
+    recovery via `on_device_lost`, and per-frame plan playback.
+- Test suites: `tests/msdf.rs` (JS-mirror vectors incl. the pinned vertical-edge
+  profile), `tests/plan.rs` (golden pipeline → plan batching/z-order/premultiplied
+  data/determinism), `tests/validation.rs` (headless CPU rendering validation incl.
+  the D28 sampling-convention pin), in-crate shader/plan unit tests, and the
+  `plan_golden` criterion benchmark (baselines in PERFORMANCE.md §6).
+
 ### Added (Phase 4.8 — glyphcull-core draw list)
 
 - `glyphcull-core::draw_list` — the ordered draw command sequence mirroring the JS
@@ -181,6 +205,5 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ### Planned (Phase 4 — per master plan)
 
-- glyphcull-render (wgpu: WebGPU +
-  GL fallback, MSDF); glyphcull-wasm (tiny API bindings); glyphcull-desktop (native
+- glyphcull-wasm (tiny API bindings); glyphcull-desktop (native
   host); mobile targets.
