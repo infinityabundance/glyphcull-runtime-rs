@@ -22,12 +22,17 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       shaders (WGSL); texture management; device-loss recovery.
 - [x] **4.10 glyphcull-wasm**: wasm32 bindings; tiny API; memory budget reporting.
 - [x] **4.11 glyphcull-desktop**: winit host; input wiring; windowing.
-- [ ] **4.12 Mobile targets**: Android target build verification; mobile host crate recorded
-      as future candidate with core/render readiness demonstrated.
-- [ ] **Test pyramid complete**; rendering validation vs golden images; CI green across
-      native + wasm.
-- [ ] **Documentation complete**: Architecture.md/DESIGN.md updated; diagrams; API docs
-      (rustdoc with `#![deny(missing_docs)]`).
+- [x] **4.12 Mobile targets**: Android target build verification (CI builds the library
+      targets for both ABIs); the mobile host crate is recorded as a future candidate with
+      core/render/host readiness demonstrated (winit compiles for Android via the pure-Rust
+      `android-native-activity` backend; iOS is target-ready in the same split).
+- [x] **Test pyramid complete**: unit/integration/property/stress/memory/performance layers
+      per subsystem (see TESTING.md); rendering validation vs a committed golden image
+      (`crates/glyphcull-render/tests/fixtures/golden-document.png`, headless CPU reference
+      rasterizer); CI green across native + wasm32 + Android.
+- [x] **Documentation complete**: Architecture.md/DESIGN.md updated with the crate diagram
+      and D29/D30; ROADMAP/TESTING/PERFORMANCE/CHANGELOG in lockstep; API docs (the
+      workspace denies `missing_docs`, doc build green under `-D warnings`).
 
 ## Definition of done (every phase)
 
@@ -39,4 +44,5 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 
 - Threaded materialization behind the scheduler contract.
 - Complex-script shaping / bidi (with compiler scope extension).
-- Android/iOS host crates (core/render already target-ready).
+- Android/iOS host crates (core/render/host already target-ready: Android ABIs build in
+  CI; iOS shares the same crate split and winit/wgpu support).

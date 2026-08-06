@@ -53,6 +53,23 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.12 — Mobile targets + final test-pyramid layers (verification only)
+
+Same environment as 4.1. No new runtime path: 4.12 verifies and documents.
+
+- **Android readiness**: CI builds the library targets for both ABIs
+  (`aarch64-linux-android`, `x86_64-linux-android`) — core, render, host, desktop —
+  with winit's pure-Rust `android-native-activity` backend (no NDK). Bins are excluded
+  from the Android step (they need the NDK linker); the mobile host is a future phase.
+- **Host memory regression** (`glyphcull-host/tests/host_memory.rs`): peak RSS over 25
+  full host lifecycles (load → scroll → paint → select → copy → destroy) of the golden
+  package measured **320 KiB** against the committed **8 MiB** budget (≈25× headroom;
+  a per-cycle leak of 0.33 MiB would trip it).
+- **Rendering validation vs golden image** (`glyphcull-render/tests/golden_image.rs`):
+  the CPU reference rasterizer renders the golden package to an **800×262** RGBA canvas
+  deterministically; the committed fixture (`golden-document.png`, 19.9 KiB) is
+  byte-stable across runs (mean-abs-error ≈ 0, max diff ≤ 1, coverage > 1%).
+
 ### 4.11 — glyphcull-desktop host (no benchmark: glue + one blocked init)
 
 Same environment as 4.1. The desktop host adds no per-frame hot path of its own: input

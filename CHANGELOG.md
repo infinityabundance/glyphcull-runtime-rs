@@ -4,6 +4,25 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.12 — Mobile targets + final test-pyramid layers)
+
+- **Rendering validation vs a golden image** (`glyphcull-render/tests/golden_image.rs`):
+  a CPU reference rasterizer (MSDF reconstruction + premultiplied-over compositing, the
+  shader's math) plays the full pipeline — parse → model → layout → draw list → pixels —
+  and compares against the committed `tests/fixtures/golden-document.png` (800×262,
+  deterministic; regeneration via `scripts/regen-golden-image.sh`, deliberate).
+- **Host memory regression** (`glyphcull-host/tests/host_memory.rs`): RSS gate over 25
+  full host lifecycles (load → scroll → paint → select → copy → destroy) of the golden
+  package — measured ≈ 0.3 MiB peak against the committed 8 MiB budget.
+- **Mobile targets**: Android library-target builds for both ABIs verified in CI for
+  core, render, host, and desktop (winit `android-native-activity`, no NDK); the mobile
+  host crate is recorded as a future candidate with readiness demonstrated. iOS shares
+  the same crate split.
+- Docs finalized: ROADMAP Phase 4 fully checked off (4.12, test pyramid, documentation);
+  Architecture.md (renderer golden-image layer, mobile evidence), PERFORMANCE.md §6
+  evidence, TESTING.md (delivered layers, host suite path, CI wording), README
+  (terminology link).
+
 ### Added (Phase 4.11 — glyphcull-desktop, winit host)
 
 - `glyphcull-host` workspace member: the platform-agnostic six-operation document host,

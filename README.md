@@ -51,7 +51,7 @@ independent readers (JS being the other), which is how the contract is validated
 - **Deterministic architecture**: same package + same viewport → same draw list.
 - **Memory discipline**: no `unsafe` except an audited single module, if ever; bounds-checked
   reader; resource budgets enforced.
-- **Terminology**: graphics-engine vocabulary (GLOSSARY.md).
+- **Terminology**: graphics-engine vocabulary (compiler repo `docs/format/GLOSSARY.md`).
 
 ## Repository documents
 

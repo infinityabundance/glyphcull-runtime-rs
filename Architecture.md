@@ -235,6 +235,12 @@ quads (mirrors the JS `src/render/drawlist.ts`).
   (consecutive glyph commands sharing a texture → one draw; fills/rulers/images →
   single quads) plus the view uniform. Premultiplied colors, dpr-scaled px-range,
   and z-order are all testable without a GPU.
+- **Rendering validation vs a golden image (4.12)**: `tests/golden_image.rs` — a CPU
+  reference rasterizer (MSDF reconstruction + premultiplied-over compositing, the same
+  math as the shader and the JS browser harness) plays the full pipeline — parse → model
+  → layout → draw list → pixels — and compares against the committed
+  `tests/fixtures/golden-document.png` (800×262 for the golden package). Deterministic
+  and headless; regeneration is deliberate (`scripts/regen-golden-image.sh`).
 - `renderer` — the wgpu executor: init lifecycle (`Renderer::init` for the backends),
   budgeted textures (atlas pages + images, deduplicated, deterministic oldest-first
   eviction), device-loss recovery (`on_device_lost` — the host re-creates and
@@ -257,9 +263,11 @@ quads (mirrors the JS `src/render/drawlist.ts`).
   select, Esc/close → exit; the demo binary (`glyphcull-desktop <file.cull>`) doubles as
   the manual harness. The `input` module is pure and headless-tested.
 - **mobile**: Android targets (`aarch64-linux-android`, `x86_64-linux-android`) verify
-  crate readiness in CI (library targets — 4.12); the mobile host crate is a future
-  phase candidate (recorded in ROADMAP.md) — the core/render/host split is what makes
-  this a compile-time story.
+  crate readiness in CI (library targets — 4.12): core, render, host, and desktop all
+  build for both ABIs (winit's pure-Rust `android-native-activity` backend; no NDK
+  needed). The mobile host crate is a future phase candidate (recorded in ROADMAP.md) —
+  the core/render/host split is what makes this a compile-time story, and iOS shares
+  the same split.
 
 ## 5.1 The shared host (glyphcull-host)
 

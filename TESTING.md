@@ -1,9 +1,9 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.11 landed (reader, document model, lifecycle, visibility,
+Status: Phase 4 complete — 4.1–4.12 landed (reader, document model, lifecycle, visibility,
 materialization, layout, glyph cache, selection, draw list, render, wasm host, desktop
-host). The pyramid below is the target for Phase 4; those layers are delivered (see
-`crates/*/tests/`).
+host, mobile-target verification). The pyramid below is the target for Phase 4; every
+layer is delivered (see `crates/*/tests/`).
 
 ## 1. Principles
 
@@ -89,14 +89,18 @@ host). The pyramid below is the target for Phase 4; those layers are delivered (
   vertex data, scroll uniform, determinism, one quad per outlined glyph plus markers),
   `tests/validation.rs` (headless CPU rendering validation: golden glyph reconstruction
   profile, in-bounds UVs through the full pipeline, and the D28 sampling-convention
-  pin), plus in-crate tests (the WGSL parses/validates and translates to GLSL and SPIR-V
-  via naga; shader math equals the CPU reference; plan unit tests). GPU execution is
-  exercised on the desktop host (4.11); the renderer compiles for native, wasm32, and
-  Android in CI.
-- **wasm**: the six-operation contract over the compiler golden package against a
-  recording sink — `tests/host.rs` (load validation, upload census, scroll/paint/resize,
-  select-and-copy round-trips, destroy semantics, multi-document isolation, selection
-  pinning); no wasm, no GPU.
+  pin), `tests/golden_image.rs` (the full golden document rasterized by the CPU
+  reference and compared against the committed `tests/fixtures/golden-document.png` —
+  the rendering-validation-vs-golden-images layer), plus in-crate tests (the WGSL
+  parses/validates and translates to GLSL and SPIR-V via naga; shader math equals the
+  CPU reference; plan unit tests). GPU execution is exercised on the desktop host
+  (4.11); the renderer compiles for native, wasm32, and Android in CI.
+- **host** (shared by wasm + desktop): the six-operation contract over the compiler
+  golden package against a recording sink — `glyphcull-host/tests/host.rs` (load
+  validation, upload census, scroll/paint/resize, select-and-copy round-trips, destroy
+  semantics, multi-document isolation, selection pinning) and
+  `glyphcull-host/tests/host_memory.rs` (RSS gate: 25 full host lifecycles peak at
+  ≈0.3 MiB against an 8 MiB budget); no wasm, no GPU.
 - **desktop**: input translation (`tests/desktop.rs` + `input` unit tests: wheel/drag/
   resize math, typed error contract) and the shared host suite in `glyphcull-host`; the
   window/GPU path is exercised by the `glyphcull-desktop` binary (needs a display
@@ -130,7 +134,10 @@ host). The pyramid below is the target for Phase 4; those layers are delivered (
   allocations.
 - RSS gates, one per binary so parallel test threads cannot inflate `VmHWM`
   mid-measurement: `reader_memory.rs`, `document_memory.rs`, `layout_memory.rs`,
-  `visibility_memory.rs` (moved out of `visibility_stress.rs` in 4.7 for this reason).
+  `visibility_memory.rs` (moved out of `visibility_stress.rs` in 4.7 for this reason),
+  `host_memory.rs` (4.12: full host lifecycles over the golden — the counting-allocator
+  variant is unavailable because the workspace forbids `unsafe`, so this is the
+  established RSS-gate method).
 
 ### Performance regression
 
@@ -139,8 +146,13 @@ host). The pyramid below is the target for Phase 4; those layers are delivered (
 
 ### Rendering validation
 
-- Offscreen native render (wgpu) of golden packages compared to reference rasterizer
-  images; wasm variant in browser harness (Playwright, in demo repo).
+- **Delivered headless (4.12)**: the golden package rasterized by the CPU reference
+  (MSDF reconstruction + premultiplied-over compositing) and compared against the
+  committed golden image (`tests/golden_image.rs` + `tests/fixtures/golden-document.png`),
+  with deliberate regeneration (`scripts/regen-golden-image.sh`).
+- Offscreen native render (wgpu) of golden packages on the desktop host and the wasm
+  variant in the browser harness (Playwright) live in the demo repository; both execute
+  the same plan the CPU rasterizer validates.
 
 ### Package validation
 
@@ -149,10 +161,12 @@ host). The pyramid below is the target for Phase 4; those layers are delivered (
 ## 3. Tooling
 
 - cargo test, cargo clippy `-D warnings`, cargo fmt --check, proptest, criterion,
-  cargo-fuzz (reader, scheduled), wasm-bindgen-test (wasm target), CI matrix: native +
-  wasm32 + Android build targets.
+  cargo-fuzz (reader, scheduled), CI matrix: native + wasm32 + Android build targets.
+  The wasm binding's browser behavior is validated in the demo repo's Playwright
+  harness (the binding's testable logic lives in `glyphcull-host`, which is
+  native-tested).
 
 ## 4. CI
 
-- fmt → clippy → test (native) → wasm tests → bench smoke → doc build (missing_docs deny)
-  → Android build targets.
+- fmt → clippy → test (native) → wasm32 build → bench smoke → doc build (missing_docs
+  deny) → Android library builds (both ABIs; 4.12).

@@ -20,6 +20,7 @@ wgpu = { version = "26.0", default-features = true }
 [dev-dependencies]
 criterion = "0.5"
 naga = "26"
+png = "0.17"
 
 [[bench]]
 name = "plan_golden"
