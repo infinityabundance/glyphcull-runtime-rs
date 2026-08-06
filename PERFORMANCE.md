@@ -51,4 +51,22 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
-To be appended as Phase 4 lands: environment, commands, measurements, decisions.
+### 4.1 — glyphcull-core reader (committed benchmarks + memory gate)
+
+Environment: AMD Ryzen 7 9800X3D (8 cores / 16 threads), Linux 7.1.4 (CachyOS), rustc
+1.96.0, release profile, criterion 0.5. Absolute numbers; re-measure per machine.
+
+| Benchmark | Time | Throughput (approx.) |
+|---|---|---|
+| `reader/parse/v1-minimal` (195 B) | 2.78 µs | — |
+| `reader/parse/pipeline-golden-855k` (854,875 B file) | 733 µs | ≈ 1.2 GB/s file |
+| `reader/parse/synthetic-1m-decoded` (1 MiB text, zlib) | 495 µs | ≈ 2.1 GB/s decoded |
+| `reader/full-contract/golden…` (parse + all typed decoders + SEAL) | 1.45 ms | ≈ 590 MB/s |
+
+Memory: `tests/reader_memory.rs` measures the RSS high-water delta over 25 parse+
+full-contract iterations of the 855 KiB golden: **peak ≈ 1.09 MiB ≈ 1.3 × package size**
+(gate: 8 × package size). The 10 MB `load()` budget (§2) is compatible with this
+per-package footprint; re-measured at 4.2 (document model) and again when streaming
+loads land.
+
+Commands: `cargo bench --all` (criterion), `cargo test --test reader_memory -- --nocapture`.

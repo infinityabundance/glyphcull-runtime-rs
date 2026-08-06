@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/glyphcull-core",
+    # crates/glyphcull-render, glyphcull-wasm, glyphcull-desktop land with
+    # their phases (4.9–4.11); the members list grows as each crate ships.
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+authors = ["GlyphCull contributors"]
+repository = "https://github.com/infinityabundance/glyphcull-runtime-rs"
+
+# Lint policy mirrors the compiler workspace: correctness-focused and
+# security-critical lints are denies; stylistic groups (`pedantic`, `nursery`)
+# are deliberately not enabled because they produce noise without safety value.
+# `unwrap/expect/panic` and direct indexing are denied because untrusted input
+# (package bytes) must never reach those paths.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+correctness = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+
+[workspace.dependencies]
+crc32fast = "1.4"
+flate2 = "1.0"
+sha2 = "0.10"

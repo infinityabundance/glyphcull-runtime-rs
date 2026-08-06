@@ -1,8 +1,9 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phase 0 (foundations). Living document; updated as each crate lands. This runtime
-mirrors `glyphcull-runtime-js` exactly in architecture — subsystem responsibilities,
-state machines, and data flow are identical; only implementation differs.
+Status: Phase 4.1 landed (glyphcull-core reader); living document, updated as each crate
+lands. This runtime mirrors `glyphcull-runtime-js` exactly in architecture — subsystem
+responsibilities, state machines, and data flow are identical; only implementation
+differs.
 
 ## 1. Position
 
@@ -48,10 +49,24 @@ testable headlessly and portable to every target.
 ## 3. Subsystems (glyphcull-core)
 
 ### 3.1 reader
-- Independent implementation of SPEC.md (the second independent reader, after the JS one).
-- Bounds-checked (`checked_add` on all untrusted offsets/lengths), typed errors, never
-  panics on input; CRC-32 and zlib via the same primitives the spec requires; SEAL
-  verification.
+
+**Delivered (4.1).** `glyphcull-core::reader` — the second independent implementation of
+SPEC.md, after the JS one. Contract-tested against the compiler's golden fixtures
+(`crates/glyphcull-core/tests/fixtures/`, refreshed by `scripts/refresh-fixtures.sh`) with
+`cull inspect` diagnostics pinned.
+
+- Container: header + section table validation (overflow-checked arithmetic, reserved
+  bits, `section_count` caps), per-section zlib decode with explicit header + Adler-32
+  verification and bounded incremental accumulation, `decoded_len` exactness, per-section
+  CRC-32, duplicate-kind rejection, unknown kinds addressable.
+- Typed decoders: INFO (deterministic JSON subset, strict keys), CHNK (records + all four
+  extra kinds), STYL (all 16 property tags), CONT (text + image refs), GLYF (atlases +
+  sorted kerning + page texels), IMGS (RGBA8/RGB8), SEAL (hash tree). Lazy behind
+  `OnceLock` caches; payloads are owned (input slice droppable after `parse`).
+- SEAL verification at load: per-section SHA-256 over decoded payloads + overall hash
+  over header bytes `0..12` and covered sections in canonical order.
+- Bounds-checked (`checked_add` on all untrusted offsets/lengths), typed errors (SPEC.md
+  §1.6), never panics on input.
 
 ### 3.2 document model
 - Chunk graph, style table, content payloads, atlas descriptors, image payloads; validated

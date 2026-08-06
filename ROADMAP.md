@@ -5,7 +5,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 
 ## Phase 4 — Rust runtime (as sequenced in the master plan)
 
-- [ ] **4.1 glyphcull-core/reader**: independent `.cull` reader per SPEC.md; validation;
+- [x] **4.1 glyphcull-core/reader**: independent `.cull` reader per SPEC.md; validation;
       SEAL; malformed corpus + truncation tests; contract tests against compiler golden
       fixtures.
 - [ ] **4.2 glyphcull-core/document**: Document model; load-time validation.

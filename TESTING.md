@@ -1,6 +1,7 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phase 0 (foundations). The pyramid below is the target for Phase 4.
+Status: Phase 4.1 landed (reader). The pyramid below is the target for Phase 4; the
+reader layers are delivered (see `crates/glyphcull-core/tests/`).
 
 ## 1. Principles
 

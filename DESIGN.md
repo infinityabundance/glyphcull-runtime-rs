@@ -1,8 +1,8 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phase 0 (foundations). Decisions with rationale, alternatives, tradeoffs. Decisions
-that mirror the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are
-new.
+Status: Phase 4.1 landed (glyphcull-core reader). Decisions with rationale, alternatives,
+tradeoffs. Decisions that mirror the JS runtime are marked (mirrors JS Dn); decisions
+specific to Rust/wgpu are new.
 
 ## D1. One architecture, two implementations (mirrors JS D1)
 
@@ -79,3 +79,38 @@ new.
 - Exactly `load/scroll/paint/select/copy/destroy`, exposed over wasm-bindgen and as a
   native library API; everything else is crate-internal. Destroyed handles reject calls
   with typed errors.
+
+## D13. Owned payloads, lazy typed decoders (reader)
+
+- The JS `Package` retains the input buffer and views raw sections zero-copy; the Rust
+  `Package` copies each decoded payload into an owned buffer and drops the input after
+  `parse`. Typed decoders (INFO/CHNK/STYL/CONT/GLYF/IMGS/SEAL) run lazily behind
+  `OnceLock` caches — the same lazy model as the JS runtime.
+- **Rationale**: Rust ownership makes packages fully self-contained and `Send`-friendly;
+  the input slice (possibly a network or file buffer) can be released immediately.
+- **Tradeoffs**: one copy of decoded section bytes at load; measured parse peak ≈ 1.3 ×
+  package size (gate at 8 × in `tests/reader_memory.rs`). The SEAL overall hash covers
+  header bytes `0..12`, so the package retains a 12-byte header prefix after the input
+  is dropped.
+
+## D14. Bounded incremental zlib decode (reader)
+
+- `inflate_verified` never pre-allocates `decoded_len` — a hostile table can claim the
+  full 2 GiB section cap with a tiny stored stream. It accumulates in 8 KiB reads, stops
+  as soon as the output would exceed the authoritative length, and verifies the zlib
+  header, `decoded_len` exactness, and the trailing Adler-32 explicitly (SPEC.md §1.5).
+  Mirrors the JS runtime's bounded accumulation; `decompress-mismatch` is the typed
+  surface for platform decode failures, exactly as in JS.
+- **Rationale**: allocation is bounded by actual decoded content, never by an untrusted
+  claim; the explicit wrapper checks are kept even though flate2 also validates the
+  stream, because the SPEC mandates them and they pin the failure kinds.
+
+## D15. Reader lint discipline (reader)
+
+- `unsafe_code = forbid` workspace-wide; direct indexing is confined to the
+  bounds-checked `Cursor` (a documented `#[allow(clippy::indexing_slicing)]`, mirroring
+  `glyphcull-format::util`); `unwrap/expect/panic` are denied in production paths.
+- Test code asserts via `expect` under explicit allows — the integration suites carry
+  `#![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]` at
+  their crate roots, and the in-crate unit-test module scopes the same allows. Same
+  policy as the compiler workspace.
