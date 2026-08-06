@@ -32,10 +32,12 @@
 //! - [`lifecycle`] — the chunk lifecycle state machine: six explicit states,
 //!   guarded transitions, transition log, selection pins, hidden-chunk and
 //!   cooling-period guards.
+//! - [`visibility`] — the visibility system: semantic + geometric culling
+//!   producing the visible set, the hidden set, and the materialization
+//!   frontier — a pure function of (document, geometry, viewport, margin).
 //!
-//! Subsequent phases add visibility, materialization, layout, glyph cache,
-//! selection, and the draw list as sibling modules (see `ROADMAP.md`
-//! 4.4–4.8).
+//! Subsequent phases add materialization, layout, glyph cache, selection,
+//! and the draw list as sibling modules (see `ROADMAP.md` 4.5–4.8).
 //!
 //! # Guarantees
 //!
@@ -52,3 +54,4 @@ pub mod error;
 pub mod lifecycle;
 pub mod limits;
 pub mod reader;
+pub mod visibility;

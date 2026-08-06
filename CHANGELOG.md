@@ -4,6 +4,21 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.4 — glyphcull-core visibility)
+
+- `glyphcull-core::visibility` — the visibility system mirroring the JS runtime:
+  `Rect`/`Viewport`, the `GeometrySource` trait (implemented by layout), semantic
+  culling (hidden flag excludes a whole subtree), geometric culling against the
+  margin-expanded viewport (inclusive of edges), the materialization frontier
+  (`not_yet_visible`), and structural-context visibility (a structural chunk is visible
+  iff a descendant is). Iterative pre-order walk with exactly one geometry read per
+  non-hidden chunk; the visible set is a pure function of its inputs.
+- Visibility test suite: geometric/semantic culling, margin expansion, edge-inclusive
+  intersection, frontier semantics, purity, the read-only boundary (document and
+  geometry never mutate; exact read counts), structural-context visibility, golden
+  invariants, a 300-case proptest over random documents/geometries/viewports
+  (invariants + purity), and 100k-chunk stress with an RSS memory gate.
+
 ### Added (Phase 4.3 — glyphcull-core chunk lifecycle)
 
 - `glyphcull-core::clock` — the injected clock: `Clock` trait, `RealClock` (wall),

@@ -145,6 +145,24 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   (`saturating_sub`), which is strictly safer for eviction than the JS arithmetic
   artifact.
 
+## D20. Visibility is a pure function with one read per chunk (visibility)
+
+- `compute_visible_set(doc, geometry, viewport, margin)` never mutates either input; the
+  geometry source is consulted exactly once per non-hidden chunk (asserted by a read
+  count in tests). The visible set is a pure function, which is what makes determinism
+  and cross-runtime contract tests possible.
+- The walk is iterative (explicit stack, DESIGN.md D17) and two-phase: a pre-order pass
+  collects semantic/geometric decisions, then a reverse pre-order pass aggregates
+  structural visibility bottom-up — mirroring the JS recursion's post-order
+  aggregation without the stack risk.
+
+## D21. f32 document coordinates (visibility)
+
+- `Rect`/`Viewport` use `f32` (the SPEC's glyph metrics are f32 and the renderer
+  consumes f32), where the JS runtime uses `number` (f64). The inclusive-of-edges
+  intersection test is exact for both at the values documents produce; cross-runtime
+  rendering validation compares pixels with tolerance, not culling bits.
+
 ## D17. Iterative document traversals (document model)
 
 - `all_ids` and `plain_text` use an explicit stack instead of recursion (the JS

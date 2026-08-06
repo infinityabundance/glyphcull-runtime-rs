@@ -11,7 +11,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 - [x] **4.2 glyphcull-core/document**: Document model; load-time validation.
 - [x] **4.3 glyphcull-core/lifecycle**: chunk lifecycle state machine; transition log;
       property tests; injected clock.
-- [ ] **4.4 glyphcull-core/visibility**: viewport + semantic culling; determinism tests.
+- [x] **4.4 glyphcull-core/visibility**: viewport + semantic culling; determinism tests.
 - [ ] **4.5 glyphcull-core/materialize**: priority queue; budgets; cooperative scheduling;
       eviction; starvation tests.
 - [ ] **4.6 glyphcull-core/layout**: UAX #29 word boundaries; Knuth–Plass; block layout;

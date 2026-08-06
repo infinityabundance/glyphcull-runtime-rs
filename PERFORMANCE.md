@@ -51,6 +51,13 @@ and bounded memory from the start:
 
 ## 6. Evidence log
 
+### 4.4 — glyphcull-core visibility (no benchmark: bounded by the walk)
+
+Culling is one O(n) walk over the visible portion of the document; per-frame cost is
+bounded by the walked set (100k-chunk cull stress in `tests/visibility_stress.rs`,
+RSS gate at 8 × package). No criterion bench: the walk has no tunable constants to
+regress; determinism and invariants are property-tested.
+
 ### 4.3 — glyphcull-core chunk lifecycle (no benchmark: trivially bounded)
 
 State transitions are O(log n) map operations with no allocation-sensitive path; the

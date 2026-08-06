@@ -1,9 +1,9 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.3 landed (glyphcull-core reader + document model + lifecycle);
-living document, updated as each crate lands. This runtime mirrors `glyphcull-runtime-js`
-exactly in architecture — subsystem responsibilities, state machines, and data flow
-are identical; only implementation differs.
+Status: Phases 4.1–4.4 landed (glyphcull-core reader + document model + lifecycle +
+visibility); living document, updated as each crate lands. This runtime mirrors
+`glyphcull-runtime-js` exactly in architecture — subsystem responsibilities, state
+machines, and data flow are identical; only implementation differs.
 
 ## 1. Position
 
@@ -86,9 +86,19 @@ package, mirroring the JS `DocumentModel`. **No geometry lives here**.
   resolved style table (no chunk/atlas duplication).
 
 ### 3.3 visibility
-- Viewport culling + semantic culling → visible set. Culling determines; it never
-  materializes. Sequential frontier walk with cached layout records (identical discipline
-  to the JS runtime).
+
+**Delivered (4.4).** `glyphcull-core::visibility` — viewport culling + semantic culling →
+visible set. Culling determines; it never materializes.
+
+- Semantic culling: the `hidden` flag excludes a chunk and its whole subtree.
+- Geometric culling: a renderable chunk is visible iff its rect (from the
+  `GeometrySource`, implemented by layout) intersects the viewport expanded by a margin
+  (inclusive of edges). Geometry-less renderable chunks are `not_yet_visible` (the
+  materialization frontier), never absent; structural chunks are visible iff a descendant
+  is visible.
+- Iterative pre-order walk (explicit stack); the geometry source is consulted exactly
+  once per non-hidden chunk. The visible set is a pure function of (document, geometry,
+  viewport, margin).
 
 ### 3.4 materialization
 - Priority queue (deterministic priorities: viewport distance + direction of travel),
