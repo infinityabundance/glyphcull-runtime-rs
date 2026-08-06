@@ -40,9 +40,12 @@
 //!   cooperative yields within a per-frame time budget, and deterministic
 //!   eviction (cooling expiry + memory-pressure eviction of the furthest
 //!   visible chunks).
+//! - [`layout`] — the layout engine: breaks, Knuth–Plass line breaking,
+//!   glyph measurement, and the block/layout engine producing absolute
+//!   document geometry (the visibility `GeometrySource`).
 //!
-//! Subsequent phases add layout, glyph cache, selection, and the draw list
-//! as sibling modules (see `ROADMAP.md` 4.6–4.8).
+//! Subsequent phases add the glyph cache, selection, and the draw list as
+//! sibling modules (see `ROADMAP.md` 4.7–4.8).
 //!
 //! # Guarantees
 //!
@@ -56,6 +59,7 @@
 pub mod clock;
 pub mod document;
 pub mod error;
+pub mod layout;
 pub mod lifecycle;
 pub mod limits;
 pub mod materialize;

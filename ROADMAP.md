@@ -14,7 +14,7 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 - [x] **4.4 glyphcull-core/visibility**: viewport + semantic culling; determinism tests.
 - [x] **4.5 glyphcull-core/materialize**: priority queue; budgets; cooperative scheduling;
       eviction; starvation tests.
-- [ ] **4.6 glyphcull-core/layout**: UAX #29 word boundaries; Knuth–Plass; block layout;
+- [x] **4.6 glyphcull-core/layout**: UAX #29 word boundaries; Knuth–Plass; block layout;
       tables; images; golden layout fixtures (shared with JS runtime).
 - [ ] **4.7 glyphcull-core/glyph cache + selection**: budgets; logical selection; copy policy.
 - [ ] **4.8 glyphcull-core/draw list**: deterministic batching; serialization for tests.

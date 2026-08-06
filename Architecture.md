@@ -1,9 +1,10 @@
 # Architecture — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.5 landed (glyphcull-core reader + document model + lifecycle +
-visibility + materialization); living document, updated as each crate lands. This runtime
-mirrors `glyphcull-runtime-js` exactly in architecture — subsystem responsibilities, state
-machines, and data flow are identical; only implementation differs.
+Status: Phases 4.1–4.6 landed (glyphcull-core reader + document model + lifecycle +
+visibility + materialization + layout); living document, updated as each crate lands. This
+runtime mirrors `glyphcull-runtime-js` exactly in architecture — subsystem
+responsibilities, state machines, and data flow are identical; only implementation
+differs.
 
 ## 1. Position
 
@@ -133,10 +134,36 @@ Visible → Cooling → Evicted.
   transition table.
 
 ### 3.6 layout
-- UAX #29 word boundaries; Knuth–Plass line breaking; block layout; tables (colspan/
-  rowspan); images. Same layout scope boundary as the JS runtime (simple shaping +
-  combining marks; complex shaping/bidi documented exclusions).
-- Deterministic: same inputs ⇒ same layout records.
+
+**Delivered (4.6).** `glyphcull-core::layout` — materialization turns semantic chunks into
+renderable geometry (mirrors the JS `src/layout/*`). **No CSS cascade lives here** — styles
+are resolved in the package.
+
+- `breaks` — UAX #29-grounded tokenization (word boundaries, closing/opening punctuation
+  binding, CJK between-ideograph breaks, forced newlines). Exact ECMAScript `\s` and
+  `\p{L}\p{N}` classes so whitespace runs and word runs match the JS runtime byte-for-
+  byte.
+- `kp` — the Knuth–Plass dynamic program over boxes/glue/penalties, mirrored operation for
+  operation (prefix sums, fitness classes, the twice-around fitness pass, the active-list
+  dedup by fitness class, and the single-line fallback when the active list exhausts on
+  pathological narrow columns — JS parity, DESIGN.md D24).
+- `measure` — per-codepoint advances, kerning (binary search over the SPEC-sorted pair
+  table), combining-mark attachment (advance 0), letter-spacing, and the half-em tofu
+  fallback for missing codepoints. f64 arithmetic on f32 atlas metrics (DESIGN.md D24).
+- `layout` — the `LayoutEngine`: sequential frontier (`extend_to`/`materialize`/
+  `next_frontier_block`), text blocks (KP breaking with first-line indent), preformatted
+  code blocks, quotes (24px indent), lists (markers: disc/circle/square/decimal/alpha/
+  roman), images (intrinsic aspect ratio, dpr-aware), horizontal rules, and the
+  deterministic table auto layout (column counts, natural widths, scaling, row heights,
+  colspan/rowspan with the last-spanned-row growth rule). Every record is absolute
+  geometry in document pixels; records are `Rc`-shared between the `records` index and
+  parent `children` (a block exists exactly once; DESIGN.md D24).
+- The engine implements the visibility `GeometrySource` contract — `rect` answers block
+  and run geometry for culling and hit testing.
+- **Deliberate divergence**: the token→line index mapping corrects a JS defect that
+  mispartitions multi-word lines (DESIGN.md R2); break geometry is identical to the JS.
+- Deterministic: same inputs ⇒ same layout records (double-build equality test);
+  streaming: chunks beyond the viewport are never laid out.
 
 ### 3.7 glyph cache
 - Budgeted cache of glyph instances keyed by (atlas, codepoint, size, color); evicted with

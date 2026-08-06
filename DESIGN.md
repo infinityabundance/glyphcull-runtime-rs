@@ -1,8 +1,9 @@
 # Design — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.2 landed (glyphcull-core reader + document model). Decisions with
-rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are marked
-(mirrors JS Dn); decisions specific to Rust/wgpu are new.
+Status: Phases 4.1–4.6 landed (glyphcull-core reader, document model, lifecycle, visibility,
+materialization, and layout). Decisions with rationale, alternatives, tradeoffs. Decisions
+that mirror the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are
+new.
 
 ## D1. One architecture, two implementations (mirrors JS D1)
 
@@ -128,6 +129,15 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   and `build_document(package)` returns a model that borrows it, which is exactly the
   JS ownership shape.
 
+## D17. Iterative document traversals (document model)
+
+- `all_ids` and `plain_text` use an explicit stack instead of recursion (the JS
+  `plainText` recurses). Output order is identical (pre-order, direct text before
+  children, `br` → newline).
+- **Rationale**: the SPEC caps chunk depth at 2^16 and documents may be adversarial;
+  native stack frames are larger than JS's, so recursion would overflow on deep chains.
+  Stress-tested at 10k depth; the walk stays iterative by design.
+
 ## D18. The clock is borrowed, not owned (lifecycle)
 
 - `LifecycleManager<'a, C: Clock>` holds `&'a C`, and `FakeClock` uses `Cell<u64>` so
@@ -156,6 +166,13 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   structural visibility bottom-up — mirroring the JS recursion's post-order
   aggregation without the stack risk.
 
+## D21. f32 document coordinates (visibility)
+
+- `Rect`/`Viewport` use `f32` (the SPEC's glyph metrics are f32 and the renderer
+  consumes f32), where the JS runtime uses `number` (f64). The inclusive-of-edges
+  intersection test is exact for both at the values documents produce; cross-runtime
+  rendering validation compares pixels with tolerance, not culling bits.
+
 ## D22. The scheduler owns its lifecycle (materialization)
 
 - `MaterializationScheduler` holds its `LifecycleManager` by value and exposes
@@ -173,18 +190,78 @@ rationale, alternatives, tradeoffs. Decisions that mirror the JS runtime are mar
   JS `!==`/`<` semantics exactly, including NaN behavior (never less) — keys are finite
   for realistic documents.
 
-## D21. f32 document coordinates (visibility)
+## D24. Layout precision and record ownership (layout)
 
-- `Rect`/`Viewport` use `f32` (the SPEC's glyph metrics are f32 and the renderer
-  consumes f32), where the JS runtime uses `number` (f64). The inclusive-of-edges
-  intersection test is exact for both at the values documents produce; cross-runtime
-  rendering validation compares pixels with tolerance, not culling bits.
+- **Precision**: text measurement and Knuth–Plass run in `f64` (the JS `number`):
+  `measure_run` widens the atlas's `f32` metrics exactly (`f64::from(f32)`), so a run's
+  advances and widths match the JS runtime at f64 precision. Geometry (block boxes,
+  line positions, glyph origins) is `f32` at the record boundary, matching `Rect` and
+  the renderer contract. The two meet at explicit `as f32` casts (see R1 for the one
+  measurement divergence).
+- **Ownership**: a nested block exists exactly once — `records` (`BTreeMap<u32,
+  Rc<BlockLayout>>`) and a parent's `children` hold the same `Rc`, exactly like the JS
+  object sharing. Without this, an n-deep tree would be duplicated at every ancestor
+  (O(n²) memory). Records are immutable after construction, so `Rc` (not
+  `Rc<RefCell<…>>`) is safe. `run_rects` gives visibility/hit-testing the per-run
+  rectangles, mirroring the JS `runRects`.
+- **Records are deterministic**: `BTreeMap` keyed by chunk id and `Rc` give stable
+  identity; the double-build equality test (`tests/layout.rs::is_deterministic…`)
+  compares two full engines' record maps.
+- **KP active-list exhaustion is JS parity**: when every active node is infeasible at a
+  breakpoint (a narrow column whose lines each fit one word), the active list dies and
+  both runtimes fall back to a single line covering the paragraph (pinned in
+  `tests/layout_kp.rs::narrow_columns_fall_back…`). The paper's deactivation rule is a
+  documented future improvement; for v1 the fallback is deterministic and identical
+  across runtimes.
 
-## D17. Iterative document traversals (document model)
+## D25. The sequential frontier (layout)
 
-- `all_ids` and `plain_text` use an explicit stack instead of recursion (the JS
-  `plainText` recurses). Output order is identical (pre-order, direct text before
-  children, `br` → newline).
-- **Rationale**: the SPEC caps chunk depth at 2^16 and documents may be adversarial;
-  native stack frames are larger than JS's, so recursion would overflow on deep chains.
-  Stress-tested at 10k depth; the walk stays iterative by design.
+- `extend_to`/`materialize`/`next_frontier_block` mirror the JS exactly: top-level
+  blocks are laid out in document order; `materialize` is idempotent (the same `Rc` is
+  returned for a repeated call) and advances the cursor by the laid block's height;
+  `extend_to(f64::INFINITY)` lays out the whole document. Streaming is the point: chunks
+  beyond the viewport are never laid out.
+- Layout of a table cell measures it twice (height pass at the natural width, then the
+  final placement) exactly like the JS; the transient record is overwritten by the
+  final one, and the rowspan growth rule (`rowHeights[last spanned row] += h -
+  current`) is mirrored line-for-line.
+
+## D26. Layout recursion is bounded by document depth (layout)
+
+- Container layout (`layout_quote`, `layout_list`, `layout_cell`, `layout_table`) is
+  recursive — it mirrors the JS engine, which is recursive too — so the layout stack
+  depth is the document depth. The SPEC caps depth at 2^16; hosts must provide a
+  commensurate native stack (the wasm host sets `--stack-size`; the desktop host's main
+  thread default suffices).
+- **Rationale**: converting container layout to an explicit work stack would diverge
+  structurally from the JS algorithm for no behavioral gain; the bound is documented
+  and stress-tested (a 5000-deep quote chain lays out on a 64 MiB-stack thread in
+  `tests/layout_stress.rs`). Document walks (`all_ids`, `plain_text`) remain iterative
+  (D17) — the common adversarial path.
+
+## R-series: deliberate divergences from the JS runtime (correctness)
+
+The Rust runtime is a faithful mirror; these are the places it deliberately does not
+reproduce a JS defect, each pinned by a test.
+
+### R1. Measurement hardening (measure)
+
+- `sum_advances` clamps its end bound, and measurement is per codepoint, so astral text
+  (surrogate pairs) measures one glyph per codepoint; the JS `laidToken` sums
+  `glyphs[0..text.length]` in UTF-16 units, which reads past the array and throws on
+  astral text. For BMP text (all fixtures) the results are identical.
+
+### R2. Token→line index mapping (layout)
+
+- A KP item is a box (even index) plus a break item (odd index) per token, so a line
+  spanning items `[start..end]` owns tokens `[start/2 .. (end-1)/2]`. The JS
+  `buildStyledLine` filters tokens by `tokenIndex ∈ [br.start, br.end]` — comparing
+  token positions to item indices. That is correct only for one-word lines; for
+  multi-word lines it over-fills early lines and starves later ones (empty lines),
+  verified against the JS runtime with a probe (golden paragraph at 220px breaks
+  `[0..1],[2..22]`; the JS assigns "Deterministic " / "golden fixture with a link.",
+  the Rust assigns "Deterministic" / " golden fixture with a link.").
+- The Rust runtime implements the correct mapping; break geometry (line count, y
+  positions, heights, ratios) is identical to the JS. Pinned by
+  `tests/layout.rs::wrapped_paragraph_preserves_every_token_exactly_once` and the
+  long-paragraph partition check in `tests/layout_stress.rs`.

@@ -253,9 +253,9 @@ pub struct LifecycleOptions {
 ///
 /// Chunks register once at load with their hidden flag; selection references
 /// pin cooling chunks against eviction. The clock is borrowed (the JS passes
-/// it by reference) — tests share a [`FakeClock`] between the manager and the
-/// test body. All per-chunk tables are ordered by chunk id (`BTreeMap`), so
-/// enumeration is deterministic.
+/// it by reference) — tests share a [`crate::clock::FakeClock`] between the
+/// manager and the test body. All per-chunk tables are ordered by chunk id
+/// (`BTreeMap`), so enumeration is deterministic.
 #[derive(Debug)]
 pub struct LifecycleManager<'a, C: Clock> {
     clock: &'a C,

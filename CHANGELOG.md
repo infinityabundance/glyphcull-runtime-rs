@@ -4,6 +4,36 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (Phase 4.6 — glyphcull-core layout)
+
+- `glyphcull-core::layout` — materialization turns semantic chunks into renderable
+  geometry (mirrors the JS `src/layout/*`):
+  - `breaks` — UAX #29-grounded tokenization (word runs, closing/opening punctuation
+    binding, CJK between-ideograph breaks, forced newlines) with the exact ECMAScript
+    `\s` and `\p{L}\p{N}` classes so whitespace/word runs match the JS runtime.
+  - `kp` — the Knuth–Plass dynamic program (boxes/glue/penalties, prefix sums, fitness
+    classes, twice-around fitness pass, active-list dedup by fitness class, the
+    single-line fallback when the active list exhausts).
+  - `measure` — per-codepoint glyph measurement: advances, kerning (binary search over
+    the SPEC-sorted pair table), combining-mark attachment, letter-spacing, and the
+    half-em tofu fallback; f64 arithmetic on f32 atlas metrics.
+  - `layout` — the `LayoutEngine`: sequential frontier (`extend_to`/`materialize`/
+    `next_frontier_block`), text blocks (KP breaking + first-line indent), preformatted
+    code blocks, quotes, lists with markers (disc/circle/square/decimal/alpha/roman),
+    images (dpr-aware aspect), `hr`, and the deterministic table auto layout
+    (colspan/rowspan with the last-spanned-row growth rule). Records are `Rc`-shared
+    between the records index and parent children (each block exists exactly once); the
+    engine implements the visibility `GeometrySource` contract.
+- Layout test suite: JS-mirror vectors (breaks/kp/measure/layout), synthetic table/
+  image/hr packages, token-partition guarantee, 300-case proptests (KP invariants,
+  determinism, geometry sanity), stress (5000-deep quote chain on a 64 MiB-stack
+  thread, 2000-block streaming, 3000-word KP), RSS memory gate (full golden layout ≈
+  2.3 × package size vs 8 × budget), and the criterion benchmark `layout` (baselines
+  in PERFORMANCE.md §6).
+- Deliberate correctness divergences from the JS runtime, pinned by tests and
+  documented in DESIGN.md (R-series): the token→line index mapping (R2) and
+  measurement hardening for astral codepoints (R1).
+
 ### Added (Phase 4.5 — glyphcull-core materialization)
 
 - `glyphcull-core::materialize` — the streaming materialization scheduler mirroring the
@@ -111,6 +141,6 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ### Planned (Phase 4 — per master plan)
 
-- glyphcull-core (document model, lifecycle, visibility, materialization, layout, glyph
-  cache, selection, draw list); glyphcull-render (wgpu: WebGPU + GL fallback, MSDF);
-  glyphcull-wasm (tiny API bindings); glyphcull-desktop (native host); mobile targets.
+- glyphcull-core (glyph cache, selection, draw list); glyphcull-render (wgpu: WebGPU +
+  GL fallback, MSDF); glyphcull-wasm (tiny API bindings); glyphcull-desktop (native
+  host); mobile targets.

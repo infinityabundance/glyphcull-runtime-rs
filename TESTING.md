@@ -1,8 +1,8 @@
 # Testing — glyphcull-runtime-rs
 
-Status: Phases 4.1–4.5 landed (reader, document model, lifecycle, visibility,
-materialization). The pyramid below is the target for Phase 4; those layers are delivered
-(see `crates/glyphcull-core/tests/`).
+Status: Phases 4.1–4.6 landed (reader, document model, lifecycle, visibility,
+materialization, layout). The pyramid below is the target for Phase 4; those layers are
+delivered (see `crates/glyphcull-core/tests/`).
 
 ## 1. Principles
 
@@ -43,7 +43,21 @@ materialization). The pyramid below is the target for Phase 4; those layers are 
   determinism, reconcile cull/requeue paths, tick expiry + selection pins,
   evict_for_memory order, and a 100-case no-starvation proptest).
 - **core/layout**: UAX #29 sample vectors; KP quality on known texts; block/table/image
-  layout golden fixtures (shared vectors with the JS runtime).
+  layout golden fixtures (shared vectors with the JS runtime). Delivered: `tests/layout_breaks.rs`
+  (JS mirror vectors: word runs, punctuation binding, contractions, CJK, forced breaks,
+  whitespace-run newline absorption — including a cross-check of the exact `\s` class),
+  `tests/layout_kp.rs` (JS mirror vectors incl. forbidden/forced penalties, tolerance,
+  fitness classes, emergency-stretch ratio, active-list-exhaustion fallback parity, and a
+  reconstruction check that every line's ratio is consistent with its item span),
+  `tests/layout_measure.rs` (golden-atlas advances, kerning, marks, letter-spacing, tofu,
+  astral codepoints), `tests/layout.rs` (golden full-document layout: increasing y, heading
+  text, frontier streaming, materialize idempotence, run geometry, list markers, code
+  blocks, quote indents, double-build determinism — plus synthetic packages for tables
+  (columns/colspan/rowspan growth), images (dpr + aspect), `hr`, and the token-partition
+  guarantee), `tests/layout_property.rs` (300-case KP invariants + determinism + geometry
+  sanity over random texts/widths), `tests/layout_stress.rs` (5000-deep quote chain on a
+  64 MiB-stack thread, 2000-block streaming, 3000-word paragraph KP), `tests/layout_memory.rs`
+  (RSS gate: full golden layout within the 8 × package budget).
 - **core/glyph cache**: budget enforcement; eviction coupling with lifecycle.
 - **core/selection**: hit testing at boundaries; range merging; copy policy.
 - **core/draw list**: batching, z-order, determinism (double-build equality).

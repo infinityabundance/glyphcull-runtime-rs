@@ -1,6 +1,7 @@
 # Performance — glyphcull-runtime-rs
 
-Status: Phase 0 (foundations). Budgets declared; measurement lands in Phase 4. No premature
+Status: Phases 4.1–4.6 landed (reader, document model, lifecycle, visibility,
+materialization, layout). Budgets declared; baselines measured per phase. No premature
 optimization: deterministic architecture, then profile, measure, optimize on evidence.
 
 ## 1. Objectives
@@ -50,6 +51,30 @@ and bounded memory from the start:
   document size.
 
 ## 6. Evidence log
+
+### 4.6 — glyphcull-core layout (committed benchmarks + memory gate)
+
+Same environment as 4.1 (AMD Ryzen 7 9800X3D, Linux, rustc 1.96.0, release, criterion 0.5).
+The golden full-document benchmark includes parse + build + layout of the whole document;
+the paragraph benchmark isolates the Knuth–Plass dynamic program on realistic prose (the
+active list is deduplicated per fitness class, so it stays small on long paragraphs).
+
+| Benchmark | Time |
+|---|---|
+| `layout/golden-full-document` (22-chunk golden, whole doc) | 760 µs |
+| `layout/paragraph-2000-words` (2000-word paragraph, KP) | 2.06 ms |
+
+Memory: `tests/layout_memory.rs` measures the RSS high-water delta over 25 parse+build+
+full-layout iterations of the 855 KiB golden: **peak ≈ 1.88 MiB ≈ 2.3 × package size**
+(gate: 8 × package size) — records, lines, and glyphs are small relative to the atlas
+pages the reader owns.
+
+Layout correctness notes: the 3000-word paragraph stress (KP active-list growth) and the
+5000-deep quote chain (layout recursion depth, 64 MiB-stack thread) both complete fast;
+the 2000-block streaming test materializes block-by-block with no backtracking.
+
+Commands: `cargo bench -p glyphcull-core --bench layout_golden`,
+`cargo test --test layout_memory -- --nocapture`.
 
 ### 4.5 — glyphcull-core materialization (no benchmark: measured in 4.9)
 
