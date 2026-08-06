@@ -12,8 +12,8 @@ description = "GlyphCull wasm host: wasm-bindgen bindings for exactly load/scrol
 workspace = true
 
 [dependencies]
-glyphcull-core = { path = "../glyphcull-core" }
-glyphcull-render = { path = "../glyphcull-render" }
+glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
+glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
 js-sys = "0.3"
 ouroboros = "0.18"
 wasm-bindgen = "0.2"

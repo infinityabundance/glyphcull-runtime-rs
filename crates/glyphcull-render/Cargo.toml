@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 bytemuck = "1"
-glyphcull-core = { path = "../glyphcull-core" }
+glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
 pollster = "0.4"
 wgpu = { version = "26.0", default-features = true }
 
