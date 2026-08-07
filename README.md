@@ -2,8 +2,17 @@
 
 [![CI](https://github.com/infinityabundance/glyphcull-runtime-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/infinityabundance/glyphcull-runtime-rs/actions/workflows/ci.yml)
 
+**A compiled GPU document runtime.**
+
 The native GlyphCull runtime in Rust. Architecture is identical to
 `glyphcull-runtime-js`; only implementation changes. Compiles to:
+
+> **Status: v0.1 experimental infrastructure prototype.** GlyphCull currently supports
+> Latin-script, per-codepoint text rendering for MVP validation. It is not yet a production
+> typography engine for complex shaping, bidirectional text, vertical text, Indic scripts,
+> Arabic shaping, or full international publishing. GlyphCull is not DRM and does not make
+> scraping impossible; it raises the cost of ordinary DOM-based extraction by replacing HTML
+> text nodes with a compiled, streamed, GPU-rendered document runtime (see SECURITY.md).
 
 - `wasm32-unknown-unknown` (browser host)
 - desktop (Linux/macOS/Windows)
@@ -52,7 +61,9 @@ crates/
 The runtime knows nothing about HTML, Markdown, or CSS. The compiler owns translation; the
 runtime owns execution. The package format (`glyphcull-compiler/docs/format/SPEC.md`) is the
 only contract. The Rust reader is an *independent* implementation of that spec — one of two
-independent readers (JS being the other), which is how the contract is validated.
+independent readers (JS being the other), which is how the contract is validated: the
+canonical cross-reader **conformance suite** (`glyphcull-demo/conformance/`) proves all three
+readers agree on every valid fixture and reject every hostile entry consistently.
 
 ## Principles
 
