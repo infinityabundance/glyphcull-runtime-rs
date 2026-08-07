@@ -685,7 +685,7 @@ impl<'a> LayoutEngine<'a> {
         // bearing_x · font_size_px). Mirrors the JS runtime exactly.
         let mut line_shift = 0.0_f64;
         for idx in token_start..=token_end {
-            let token = &tokens[idx];
+            let Some(token) = tokens.get(idx) else { break };
             if let Some(atlas) = self.atlas_for(token.style) {
                 let probe = measure_run(
                     atlas,
