@@ -47,14 +47,16 @@ jobs:
         run: cargo clippy --all --target wasm32-unknown-unknown
       # Android verifies crate readiness (ROADMAP 4.12): library targets only —
       # a bin would need the NDK linker, which the CI image does not carry.
-      # glyphcull-mobile is excluded from the linked build for the same
-      # reason (its cdylib is the Android activity library) and type-checked
-      # separately below; the real NDK link happens in the Docker APK
-      # pipeline (glyphcull-demo/docker/android-build.sh).
+      # The cdylib crates (glyphcull-wasm, glyphcull-mobile, glyphcull-ios)
+      # also link a .so and need the NDK linker, so the build is scoped to the
+      # platform-agnostic rlib crates; the cdylibs are type-checked via
+      # `cargo check` (mobile below, ios below; wasm's wasm32 build above). The
+      # real NDK link happens in the Docker APK pipeline
+      # (glyphcull-demo/docker/android-build.sh).
       - name: Build (android aarch64)
-        run: cargo build --lib --all --exclude glyphcull-mobile --target aarch64-linux-android
+        run: cargo build --lib -p glyphcull-core -p glyphcull-render -p glyphcull-host --target aarch64-linux-android
       - name: Build (android x86_64)
-        run: cargo build --lib --all --exclude glyphcull-mobile --target x86_64-linux-android
+        run: cargo build --lib -p glyphcull-core -p glyphcull-render -p glyphcull-host --target x86_64-linux-android
       # `cargo check` compiles the real android_main/asset entry (cfg
       # target_os = "android") without linking the cdylib.
       - name: Check (mobile aarch64)
