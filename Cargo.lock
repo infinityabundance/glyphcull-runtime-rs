@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "glyphcull-desktop"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "glyphcull-core",
  "glyphcull-host",
@@ -796,8 +796,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "glyphcull-mobile"
+version = "0.1.0"
+dependencies = [
+ "android-activity",
+ "glyphcull-core",
+ "glyphcull-desktop",
+ "glyphcull-host",
+ "ndk",
+ "pollster",
+ "winit",
+]
+
+[[package]]
 name = "glyphcull-render"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "bytemuck",
  "criterion",

@@ -10,9 +10,10 @@
 //!   and the input wiring (wheel → scroll, drag → select, Esc/close → exit).
 //! - `input` — pure, headless-testable input translation (winit events →
 //!   document-space operations).
-//! - `sink` — the native wgpu `FrameSink` (`Surface<'static>` via the
-//!   Arc-backed window handle, non-sRGB target, per-frame present) with
-//!   headless frame capture (DESIGN.md D31).
+//! - `sink` — the native wgpu `FrameSink` (re-attachable `Surface<'static>`
+//!   from the Arc-backed window handle, non-sRGB target, per-frame present)
+//!   with headless frame capture (DESIGN.md D31); shared with the mobile host
+//!   (DESIGN.md D29).
 //! - the `glyphcull-desktop` binary — open a `.cull` file in a window, or
 //!   `--screenshot out.png --size WxH` for the headless-capture smoke mode
 //!   (the demo's `scripts/desktop-smoke.sh` validates the capture against the
@@ -23,6 +24,7 @@ pub mod input;
 mod sink;
 
 pub use app::{run, run_with, DesktopDocument, DesktopError, HostLaunch};
+pub use sink::DesktopSink;
 
 use std::path::PathBuf;
 

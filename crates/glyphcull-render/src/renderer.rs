@@ -728,6 +728,116 @@ pub struct Renderer {
     pub target_format: wgpu::TextureFormat,
 }
 
+/// Create the MSDF render pipeline for a non-sRGB `target_format`, plus the
+/// view-uniform bind group layout the host's bind groups are created from.
+///
+/// Everything here is cheap and format-independent except the pipeline's
+/// color target; a format retarget (a different surface) is therefore a single
+/// pipeline rebuild that leaves the device, buffers, and textures untouched.
+fn create_msdf_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("glyphcull-msdf"),
+        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(MSDF_WGSL)),
+    });
+
+    let uniform_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("glyphcull-view-bgl"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    });
+    let texture_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("glyphcull-texture-bgl"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ],
+    });
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("glyphcull-msdf-pl"),
+        bind_group_layouts: &[&uniform_bgl, &texture_bgl],
+        push_constant_ranges: &[],
+    });
+
+    let vertex_buffer_layout = wgpu::VertexBufferLayout {
+        array_stride: crate::shader::VERTEX_STRIDE,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 0,
+                shader_location: 0,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 8,
+                shader_location: 1,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 16,
+                shader_location: 2,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32,
+                offset: 32,
+                shader_location: 3,
+            },
+        ],
+    };
+
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("glyphcull-msdf-pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[vertex_buffer_layout],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: target_format,
+                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    });
+    (pipeline, uniform_bgl)
+}
+
 impl Renderer {
     /// Create the instance, adapter, and device for the given backends.
     ///
@@ -783,103 +893,7 @@ impl Renderer {
             !target_format.is_srgb(),
             "the MSDF pipeline targets non-sRGB formats only"
         );
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("glyphcull-msdf"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(MSDF_WGSL)),
-        });
-
-        let uniform_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("glyphcull-view-bgl"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-        let texture_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("glyphcull-texture-bgl"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("glyphcull-msdf-pl"),
-            bind_group_layouts: &[&uniform_bgl, &texture_bgl],
-            push_constant_ranges: &[],
-        });
-
-        let vertex_buffer_layout = wgpu::VertexBufferLayout {
-            array_stride: crate::shader::VERTEX_STRIDE,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: 8,
-                    shader_location: 1,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 16,
-                    shader_location: 2,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32,
-                    offset: 32,
-                    shader_location: 3,
-                },
-            ],
-        };
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("glyphcull-msdf-pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[vertex_buffer_layout],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+        let (pipeline, uniform_bgl) = create_msdf_pipeline(&device, target_format);
 
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("glyphcull-view-ub"),
@@ -916,6 +930,25 @@ impl Renderer {
             textures,
             target_format,
         }
+    }
+
+    /// Rebuild the MSDF pipeline for a new non-sRGB target format without
+    /// touching the device, buffers, or textures — the sink calls this when it
+    /// attaches to a surface whose preferred format differs from the pipeline's
+    /// current target (e.g. the first attach after an unsurfaced init, or a
+    /// different display). The target format is the only format-dependent
+    /// resource in the renderer (DESIGN.md D28).
+    pub fn retarget_target_format(&mut self, target_format: wgpu::TextureFormat) {
+        debug_assert!(
+            !target_format.is_srgb(),
+            "the MSDF pipeline targets non-sRGB formats only"
+        );
+        if target_format == self.target_format {
+            return;
+        }
+        let (pipeline, _) = create_msdf_pipeline(&self.device, target_format);
+        self.pipeline = pipeline;
+        self.target_format = target_format;
     }
 
     /// The device (the host needs it to configure its surface).

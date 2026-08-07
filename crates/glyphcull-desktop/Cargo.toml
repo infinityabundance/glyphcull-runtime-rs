@@ -2,7 +2,12 @@
 name = "glyphcull-desktop"
 # 0.1.1: the `--screenshot`/`--size`/`--scroll` headless-capture mode
 # (DESIGN.md D31) behind the demo's desktop smoke; HostLaunch + parse_args.
-version = "0.1.1"
+# 0.1.2: the re-attachable sink (DESIGN.md D29) — `DesktopSink` is public with
+# `new_unsurfaced`/`attach`/`detach` (the Android suspend/resume lifecycle);
+# the surface is an `Option`; the attach format-selection is pure and
+# unit-tested; render 0.1.4's `retarget_target_format` keeps the pipeline in
+# step with the attached surface.
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

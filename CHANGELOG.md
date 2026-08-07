@@ -4,6 +4,36 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (0.1.4 / 0.1.2 / 0.1.0 — re-attachable sink + the mobile host, Phase 4.13)
+
+- `glyphcull-render` 0.1.4: `Renderer::retarget_target_format` — rebuild the MSDF
+  pipeline for a different non-sRGB target format without losing the
+  device/buffers/textures (a sink attaching to a different surface; DESIGN.md
+  D29). Pipeline creation is extracted into the shared `create_msdf_pipeline`.
+- `glyphcull-desktop` 0.1.2: the sink is public and re-attachable (DESIGN.md
+  D29) — `DesktopSink::new(window)` keeps the surface-first desktop path;
+  `new_unsurfaced()`/`attach(window)`/`detach()` serve the Android
+  suspend/resume lifecycle (the native window, and with it the surface, dies
+  on suspend); `draw` reports "no surface" while detached; the attach
+  format-selection is pure and unit-tested. New `capture_readback` override
+  (all backends).
+- `glyphcull-mobile` 0.1.0: the Android host — a winit application that loads
+  a packaged `.cull` from the APK assets (`assets/doc.cull`, validated by the
+  pure `asset::validate_asset_name`) and serves the identical six-operation
+  runtime API over the shared sink. Lifecycle: rebuild the document on
+  `resumed`, drop on `suspended` (the canonical Android GPU pattern). Input:
+  wheel + touch-drag scroll (content follows the finger), drag select. The
+  `android_main` entry is the workspace's only `#[no_mangle]` (unsafe_code is
+  deny, not forbid, for that documented shim).
+
+### Fixed (pre-existing, found by the 0.1.4 sink work)
+
+- `glyphcull-desktop` on wasm32: the sink's `capture` override called the
+  native-only `render_to_rgba`, so the crate (and the whole `--all` wasm32
+  build) has not compiled since the 0.1.3 readback split. The override is now
+  `cfg(not(target_family = "wasm"))`; the all-backends `capture_readback`
+  keeps the last-plan seam live on every target.
+
 ### Added (0.1.3 / 0.1.3 / 0.2.2 — async frame capture on the wasm binding)
 
 - `glyphcull-render` 0.1.3: the readback split for wasm — `FrameReadback` +
