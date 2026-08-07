@@ -32,6 +32,25 @@ GlyphCull is decades-long infrastructure. Standards below are enforced by review
 3. Local gate (above); update docs in the same change.
 4. PR with change description, evidence, doc delta.
 
+### CI
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the full gate from a clean
+checkout on every push to `main` and every pull request:
+
+- `cargo fmt --check`; `cargo clippy` native and wasm32 (the wasm build ships the real
+  `cfg(web)`-gated API)
+- `cargo build --workspace --all-targets` (native) + `cargo build -p glyphcull-desktop`
+  + `cargo build --all --target wasm32-unknown-unknown`
+- `cargo test --all --all-targets`; `cargo doc --all --no-deps` (missing_docs = deny
+  keeps the entire public surface documented — the API-expansion guard)
+- `./scripts/ci-audit.sh` — exactly one documented `allow(unsafe_code)` (the mobile
+  `android_main` shim), no `unsafe` blocks anywhere
+- `./scripts/ci-package.sh` — every crate packages cleanly (the release gate)
+- Android library builds for both ABIs + `cargo check` of the mobile host; iOS
+  type-checks for all three targets; bench smoke
+
+CI is the release gate: a crate is published only from a green tree.
+
 ## 4. Review requirements
 
 - Behavior changes include before/after evidence (measurements, diffs of golden bytes).

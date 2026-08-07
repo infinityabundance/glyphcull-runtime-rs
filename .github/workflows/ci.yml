@@ -23,8 +23,16 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy (native)
         run: cargo clippy --all-targets --all-features
+      - name: Build (native, all targets)
+        run: cargo build --workspace --all-targets
+      - name: Build (desktop)
+        run: cargo build -p glyphcull-desktop
       - name: Test (native)
         run: cargo test --all --all-targets
+      - name: Unsafe audit (one documented allow only)
+        run: ./scripts/ci-audit.sh
+      - name: Package dry-run (every crate packages cleanly)
+        run: ./scripts/ci-package.sh
       - name: Build (wasm32)
         run: cargo build --all --target wasm32-unknown-unknown
       # The wasm crate's `load` API is gated behind `cfg(web)`, which its build

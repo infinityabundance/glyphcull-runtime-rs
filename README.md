@@ -1,5 +1,7 @@
 # glyphcull-runtime-rs
 
+[![CI](https://github.com/infinityabundance/glyphcull-runtime-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/infinityabundance/glyphcull-runtime-rs/actions/workflows/ci.yml)
+
 The native GlyphCull runtime in Rust. Architecture is identical to
 `glyphcull-runtime-js`; only implementation changes. Compiles to:
 

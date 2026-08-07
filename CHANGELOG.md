@@ -4,6 +4,14 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (CI hardening — the release gate)
+
+- The workflow now also runs `cargo build --workspace --all-targets`, the explicit
+  desktop build, `scripts/ci-audit.sh` (exactly one documented
+  `allow(unsafe_code)` — the mobile `android_main` shim — and no `unsafe` blocks
+  anywhere), and `scripts/ci-package.sh` (every crate packages cleanly). README CI
+  badge; CONTRIBUTING documents the workflow.
+
 ### Added (0.2.3 — the surface-free WebGPU load: pixel-exact browser validation)
 
 - `glyphcull-wasm` 0.2.3: `loadHeadless(bytes, options)` — the same document
