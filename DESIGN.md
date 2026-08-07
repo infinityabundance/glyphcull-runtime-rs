@@ -316,36 +316,78 @@ host, two thin faces.
 - **The sink is a trait seam**: `FrameSink` (uploads, draw, resize, destroy) is a
   `Box<dyn FrameSink>`; each binding supplies a wgpu implementation (canvas / window),
   and native tests inject a recording sink — the entire host is tested with no GPU.
-- **The surface is `'static` by ownership**: each binding passes its window/canvas
-  handle by value — `SurfaceTarget::Canvas(canvas)` on web, `SurfaceTarget::Window`
-  with an `Arc<Window>` on desktop (the surface keeps its own copy of the handle
-  alive). Borrowing the handle would yield a frame-bound surface that cannot be
-  stored.
+- **The surface is `'static` by ownership, and re-attachable**: each binding passes
+  its window/canvas handle by value — `SurfaceTarget::Canvas(canvas)` on web,
+  `SurfaceTarget::Window` with an `Arc<Window>` on desktop (the surface keeps its own
+  copy of the handle alive). Borrowing the handle would yield a frame-bound surface
+  that cannot be stored. The desktop/mobile sink stores the surface in an `Option`
+  and exposes `attach`/`detach` (D30): Android's native window — and with it the
+  surface — dies on `suspended` and is recreated per `resumed`, so the surface must
+  be replaceable without rebuilding the device.
 - **`#[cfg(web)]` boundary**: the wasm binding's `load` (and its helpers and the
   canvas/future imports) are gated on `web`; the host crate itself is
   platform-agnostic and compiles on native, wasm32, and both Android ABIs.
 
-## D30. The desktop host (winit)
+## D30. The desktop/mobile host (winit)
 
-- **`Surface<'static>` via `Arc<Window>`**: winit's `Window` is not `Clone`, and its
-  `WindowHandle` impls live on the concrete type. The desktop sink therefore owns an
-  `Arc<Window>` (winit windows are `Send + Sync` on the supported desktop platforms,
-  satisfying wgpu's `WindowHandle` supertraits on native), and `create_surface` takes
-  it by value — `Surface<'static>`, exactly like the wasm canvas (D29). The
-  application keeps its own `Arc` clone for input, and the surface's internal copy
-  keeps the window alive for the sink's lifetime.
+- **`Surface<'static>` via `Arc<Window>`, re-attachable (0.1.2)**: winit's `Window` is
+  not `Clone`, and its `WindowHandle` impls live on the concrete type. The sink
+  therefore creates the surface from an owned `Arc<Window>` (winit windows are
+  `Send + Sync` on the supported desktop platforms, satisfying wgpu's `WindowHandle`
+  supertraits on native) — `Surface<'static>`, exactly like the wasm canvas (D29).
+  The surface lives in an `Option` and is replaceable:
+  - `DesktopSink::new(window)` — the desktop path: surface first, then the
+    adapter requested **compatible with that surface** (the right GPU on hybrid
+    graphics), the renderer built for the surface's non-sRGB format.
+  - `DesktopSink::new_unsurfaced()` — the mobile path: adapter by power
+    preference, renderer against a provisional format, no surface. The window on
+    Android only exists between `resumed` and `suspended`, so the sink is
+    initialized once and the surface is attached per resume.
+  - `attach(window)` — creates the surface, matches the pipeline to the surface's
+    preferred non-sRGB format (`Renderer::retarget_target_format`, 0.1.4 — a
+    single pipeline rebuild; the device/buffers/textures survive), configures.
+  - `detach()` — drops the surface (Android suspend). Offscreen capture still
+    works; `draw` reports "no surface" instead of touching a stale handle.
 - **Events → operations, purely**: the `input` module translates winit events into
   document-space operations with pure functions (line/pixel wheel deltas → doc px,
   physical cursor → doc point, viewport advance with top clamping) — headless-tested.
-  The event loop itself is a thin `ApplicationHandler`: wheel → `scroll`, drag →
-  `select_point`/`select_between`, resize → viewport + surface reconfigure, Esc/close
-  → exit, `RedrawRequested` → `paint`.
+  The mobile app adds touch drag-scroll (content follows the finger: `(prev − cur)/dpr`
+  doc px, unit-tested). The event loop itself is a thin `ApplicationHandler`: wheel →
+  `scroll`, drag → `select_point`/`select_between`, resize → viewport + surface
+  reconfigure, Esc/close → exit, `RedrawRequested` → `paint`.
 - **Blocking init once**: wgpu adapter/device setup is async; `DesktopDocument::load`
   blocks on it with `pollster` inside the event loop's `resumed` (the platform
   requires a window before the adapter can be requested compatibly).
 - **Android readiness**: winit's `android-native-activity` backend (pure Rust — no NDK
   games SDK) keeps the crate compiling for Android; CI verifies the library targets
-  (a bin would need the NDK linker). The mobile host is a future phase (ROADMAP 4.12).
+  (a bin would need the NDK linker). The mobile host crate is delivered in Phase 4.13
+  (`glyphcull-mobile`): the same winit host over this sink, loading a packaged `.cull`
+  from the APK assets, with the rebuild-on-resume lifecycle (D32).
+
+## D32. The mobile host lifecycle (glyphcull-mobile)
+
+The Android host is the same winit host over the same sink — only the entry point
+and the lifecycle differ.
+
+- **Entry**: `android_main(app)` is a plain `#[no_mangle]` Rust-ABI fn (android-activity
+  looks the unmangled symbol up with `dlsym`); winit needs the `AndroidApp` for its
+  event loop (`EventLoopBuilderExtAndroid::with_android_app`). This is the workspace's
+  only unsafe surface — `unsafe_code` is `deny` (not `forbid`) so the single, documented
+  shim can carry the attribute; nothing else in the tree uses it.
+- **Asset contract**: the packaged document is `assets/doc.cull`; the name is validated
+  by a pure function (relative, no `./`/`../`/backslash/NUL) and read through the NDK
+  `AssetManager` (`Asset` implements `Read`). The APK build (the demo repo's
+  `scripts/android-build.sh`) compiles a fixture into that asset.
+- **Rebuild on resume**: `resumed` (re)builds window → sink → host from the packaged
+  bytes; `suspended` drops the document. The native window, and with it the wgpu
+  surface, is destroyed on suspend, so holding it across the lifecycle would touch a
+  stale handle; dropping and rebuilding is the canonical Android GPU pattern (the
+  wgpu examples do the same). The bytes are parsed per resume (deterministic and
+  validated); parsing is cheap, and the re-upload is bounded and budgeted.
+- **Input**: wheel (mice/trackpads) and touch drag-scroll (content follows the finger:
+  `(prev − cur)/dpr` doc px, unit-tested; only the first touch is tracked); left-drag
+  selects; Esc/back exits. Fling inertia and pinch zoom are recorded roadmap
+  candidates, not deferred scope.
 
 ## R-series: deliberate divergences from the JS runtime (correctness)
 

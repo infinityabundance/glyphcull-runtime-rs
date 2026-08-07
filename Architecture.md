@@ -30,6 +30,10 @@ Pixels
                  └──────────┬──────────┘
                             │
                  ┌──────────▼──────────┐
+                 │  glyphcull-mobile   │  Android host (winit/wgpu, Phase 4.13)
+                 └──────────┬──────────┘
+                            │  the shared DesktopSink (attach/detach lifecycle)
+                 ┌──────────▼──────────┐
                  │  glyphcull-wasm     │  wasm32 bindings (same tiny API)
                  └──────────┬──────────┘
                             │
@@ -49,8 +53,10 @@ Pixels
 Dependency direction is strictly downward. `glyphcull-core` knows nothing about wgpu, winit,
 or wasm-bindgen; `glyphcull-render` knows nothing about hosts; `glyphcull-host` knows nothing
 about winit or wasm-bindgen (it is the JS `src/api/runtime.ts` mirrored as a crate, shared by
-both bindings — DESIGN.md D29). This is what makes the core testable headlessly and portable
-to every target.
+both bindings — DESIGN.md D29). `glyphcull-mobile` reuses the desktop sink (`glyphcull-desktop`
+re-exports `DesktopSink`), so the Android host adds no rendering or host code — only the
+winit application, the asset read, and the entry point. This is what makes the core testable
+headlessly and portable to every target.
 
 ## 3. Subsystems (glyphcull-core)
 
@@ -261,13 +267,16 @@ quads (mirrors the JS `src/render/drawlist.ts`).
   loads a `.cull` package over `glyphcull-host` + a wgpu surface (`Surface<'static>` via
   the Arc-backed window handle, DESIGN.md D30). Input wiring: wheel → scroll, drag →
   select, Esc/close → exit; the demo binary (`glyphcull-desktop <file.cull>`) doubles as
-  the manual harness. The `input` module is pure and headless-tested.
-- **mobile**: Android targets (`aarch64-linux-android`, `x86_64-linux-android`) verify
-  crate readiness in CI (library targets — 4.12): core, render, host, and desktop all
-  build for both ABIs (winit's pure-Rust `android-native-activity` backend; no NDK
-  needed). The mobile host crate is a future phase candidate (recorded in ROADMAP.md) —
-  the core/render/host split is what makes this a compile-time story, and iOS shares
-  the same split.
+  the manual harness. The `input` module is pure and headless-tested. Since 0.1.2 the
+  sink is public and re-attachable (`new_unsurfaced`/`attach`/`detach`), which is what
+  the mobile host runs on.
+- **mobile** (`glyphcull-mobile`) — **delivered (4.13)**. The Android host: the same winit
+  application over the shared `DesktopSink`, loading a packaged `.cull` from the APK
+  assets (`assets/doc.cull`) and serving the identical six-operation API. Lifecycle:
+  rebuild the document on `resumed`, drop on `suspended` (DESIGN.md D32); input: wheel
+  + touch drag-scroll, drag select. `android_main` is a plain `#[no_mangle]` Rust-ABI
+  entry (the workspace's only unsafe surface). The demo repo's Docker pipeline
+  assembles a signed APK for `arm64-v8a` + `x86_64` (`scripts/android-build.sh`).
 
 ## 5.1 The shared host (glyphcull-host)
 

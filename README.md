@@ -33,7 +33,11 @@ crates/
                         destroy) shared by the wasm and desktop bindings.
   glyphcull-wasm/     — wasm32 bindings exposing the identical tiny API.
   glyphcull-desktop/  — native host application (winit + wgpu); `glyphcull-desktop <file.cull>`
-                        opens a compiled document in a window.
+                        opens a compiled document in a window; the re-attachable
+                        `DesktopSink` (attach/detach) is shared with mobile.
+  glyphcull-mobile/   — Android host (winit + wgpu, Phase 4.13): loads the packaged `.cull`
+                        from APK assets; same six-op API; APK assembled by the demo's
+                        Docker pipeline.
 ```
 
 ## The runtime is not a browser

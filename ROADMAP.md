@@ -30,15 +30,26 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       half-texel phase, D28 corrected; the never-written white texture), each with
       regression coverage.
 - [x] **4.12 Mobile targets**: Android target build verification (CI builds the library
-      targets for both ABIs); the mobile host crate is recorded as a future candidate with
-      core/render/host readiness demonstrated (winit compiles for Android via the pure-Rust
-      `android-native-activity` backend; iOS is target-ready in the same split).
+      targets for both ABIs); core/render/host/desktop readiness demonstrated (winit
+      compiles for Android via the pure-Rust `android-native-activity` backend; iOS is
+      target-ready in the same split).
+- [x] **4.13 glyphcull-mobile**: the Android host crate — the winit application over the
+      shared, re-attachable `DesktopSink` (0.1.2: `new_unsurfaced`/`attach`/`detach`;
+      render 0.1.4 `retarget_target_format`), loading the packaged `.cull` from APK
+      assets, with the rebuild-on-resume lifecycle (DESIGN.md D32) and wheel + touch
+      drag-scroll. **APK delivered** (2026-08-07): the demo's Docker pipeline
+      (docker/Dockerfile android stage + scripts/android-build.sh) links both ABIs
+      (`arm64-v8a`, `x86_64`) with the NDK and assembles a signed, zipaligned APK over
+      the system's NativeActivity (`com.glyphcull.host`, `assets/doc.cull`, verified by
+      apksigner + aapt badging). CI type-checks the crate for both ABIs (the NDK link
+      lives in the Docker pipeline). A visual device run is recorded as a future
+      candidate (no emulator GPU in this environment).
 - [x] **Test pyramid complete**: unit/integration/property/stress/memory/performance layers
       per subsystem (see TESTING.md); rendering validation vs a committed golden image
       (`crates/glyphcull-render/tests/fixtures/golden-document.png`, headless CPU reference
       rasterizer); CI green across native + wasm32 + Android.
 - [x] **Documentation complete**: Architecture.md/DESIGN.md updated with the crate diagram
-      and D29/D30; ROADMAP/TESTING/PERFORMANCE/CHANGELOG in lockstep; API docs (the
+      and D29/D30/D32; ROADMAP/TESTING/PERFORMANCE/CHANGELOG in lockstep; API docs (the
       workspace denies `missing_docs`, doc build green under `-D warnings`).
 
 ## Definition of done (every phase)
