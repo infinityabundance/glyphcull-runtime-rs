@@ -220,7 +220,7 @@ pub fn priority_key(
 /// (composition): read it via [`Self::lifecycle`] and mutate selection or
 /// registration state via [`Self::lifecycle_mut`].
 #[derive(Debug)]
-pub struct MaterializationScheduler<'a, C: Clock> {
+pub struct MaterializationScheduler<'a, C: Clock + ?Sized> {
     clock: &'a C,
     lifecycle: LifecycleManager<'a, C>,
     frame_budget_ms: u64,
@@ -231,7 +231,7 @@ pub struct MaterializationScheduler<'a, C: Clock> {
     last_visible: HashSet<u32>,
 }
 
-impl<'a, C: Clock> MaterializationScheduler<'a, C> {
+impl<'a, C: Clock + ?Sized> MaterializationScheduler<'a, C> {
     /// Create a scheduler over a clock and an owned lifecycle manager.
     #[must_use]
     pub fn new(

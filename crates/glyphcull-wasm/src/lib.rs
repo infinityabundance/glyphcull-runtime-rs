@@ -35,6 +35,22 @@ pub use glyphcull_host::{
 };
 pub use sink::WgpuSink;
 
+/// The wasm clock: `performance.now()` (monotonic milliseconds). The host's
+/// scheduler budgets and the lifecycle's cooling periods read it; the native
+/// default (`SystemTime`) panics on wasm32-unknown-unknown.
+struct WasmClock;
+
+impl glyphcull_core::clock::Clock for WasmClock {
+    fn now(&self) -> u64 {
+        web_sys::window()
+            .and_then(|window| window.performance())
+            .map_or(0, |performance| performance.now() as u64)
+    }
+}
+
+/// The `'static` wasm clock (zero-sized).
+static WASM_CLOCK: WasmClock = WasmClock;
+
 /// The wasm document handle: exactly the six runtime operations.
 #[wasm_bindgen]
 pub struct GlyphCullDocument {
@@ -246,9 +262,19 @@ async fn load_inner(
         })
         .await
         .map_err(|e| js_err(HostError::Renderer(format!("renderer-unavailable: {e}"))))?;
+    // WebGL2 (wgpu's GL backend in the browser) exposes downlevel limits — in
+    // particular SwiftShader reports no compute support, so the default
+    // limits make device creation fail. Downlevel defaults are sufficient for
+    // the draw-list workload; WebGPU keeps the full limits.
+    let limits = if adapter.get_info().backend == wgpu::Backend::Gl {
+        wgpu::Limits::downlevel_webgl2_defaults()
+    } else {
+        wgpu::Limits::default()
+    };
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("glyphcull-wasm"),
+            required_limits: limits,
             ..Default::default()
         })
         .await
@@ -261,7 +287,8 @@ async fn load_inner(
         .find(|format| !format.is_srgb())
         .unwrap_or(wgpu::TextureFormat::Rgba8Unorm);
     let sink = WgpuSink::from_device(device, queue, Some(surface), format);
-    let host = HostDocument::load(pkg, Box::new(sink), options).map_err(js_err)?;
+    let host =
+        HostDocument::load_with_clock(pkg, Box::new(sink), options, &WASM_CLOCK).map_err(js_err)?;
     Ok(JsValue::from(GlyphCullDocument { host: Some(host) }))
 }
 

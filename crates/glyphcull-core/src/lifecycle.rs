@@ -257,7 +257,7 @@ pub struct LifecycleOptions {
 /// manager and the test body. All per-chunk tables are ordered by chunk id
 /// (`BTreeMap`), so enumeration is deterministic.
 #[derive(Debug)]
-pub struct LifecycleManager<'a, C: Clock> {
+pub struct LifecycleManager<'a, C: Clock + ?Sized> {
     clock: &'a C,
     default_cooling_period_ms: u64,
     states: BTreeMap<u32, ChunkState>,
@@ -268,7 +268,7 @@ pub struct LifecycleManager<'a, C: Clock> {
     log: Vec<Transition>,
 }
 
-impl<'a, C: Clock> LifecycleManager<'a, C> {
+impl<'a, C: Clock + ?Sized> LifecycleManager<'a, C> {
     /// Create a manager over the given clock.
     #[must_use]
     pub const fn new(clock: &'a C, options: LifecycleOptions) -> Self {

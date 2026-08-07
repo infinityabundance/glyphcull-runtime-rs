@@ -26,5 +26,7 @@ glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["HtmlCanvasElement"] }
-wgpu = "26"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Window", "Performance"] }
+# The webgl feature compiles wgpu's GL backend for the browser (WebGL2), so
+# hosts can select WebGL as a fallback when WebGPU is unavailable.
+wgpu = { version = "26", features = ["webgl"] }

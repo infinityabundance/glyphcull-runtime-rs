@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt;
 
-use glyphcull_core::clock::RealClock;
+use glyphcull_core::clock::{Clock, RealClock};
 use glyphcull_core::document::{build_document, DocumentModel};
 use glyphcull_core::draw_list::{DrawListBuilder, TextureResolver};
 use glyphcull_core::glyphs::{prepare_glyph, GlyphCache, GlyphKey};
@@ -303,7 +303,9 @@ pub struct HostDocument {
     glyph_cache: GlyphCache,
     // The lifecycle is owned by the scheduler (the scheduler pins cooling
     // chunks against eviction); the host reaches it via `lifecycle_mut()`.
-    scheduler: MaterializationScheduler<'static, RealClock>,
+    // The clock is a `'static` trait object so hosts can inject a platform
+    // clock (wasm has no std time; the binding provides performance.now).
+    scheduler: MaterializationScheduler<'static, dyn Clock + 'static>,
     #[borrows(doc)]
     top_level_ids: BTreeSet<u32>,
     page_handles: BTreeMap<(u32, u16), u32>,
@@ -332,19 +334,33 @@ impl HostDocument {
         sink: Box<dyn FrameSink>,
         options: HostOptions,
     ) -> Result<Self, HostError> {
+        Self::load_with_clock(pkg, sink, options, &REAL_CLOCK)
+    }
+
+    /// Load a parsed package with an explicit `'static` clock. The native
+    /// default is the real clock; the wasm binding injects a
+    /// performance.now-based clock (wasm32-unknown-unknown has no std time,
+    /// and `SystemTime::now` panics there).
+    #[allow(clippy::expect_used)] // the build was validated above; identical input
+    pub fn load_with_clock(
+        pkg: Package,
+        sink: Box<dyn FrameSink>,
+        options: HostOptions,
+        clock: &'static dyn Clock,
+    ) -> Result<Self, HostError> {
         validate_options(&options)?;
         {
             let doc = build_document(&pkg).map_err(|e| HostError::Load(e.to_string()))?;
             let _ = doc.all_ids().len();
         }
         let lifecycle = LifecycleManager::new(
-            &REAL_CLOCK,
+            clock,
             LifecycleOptions {
                 default_cooling_period_ms: options.cooling_period_ms,
             },
         );
         let scheduler = MaterializationScheduler::new(
-            &REAL_CLOCK,
+            clock,
             lifecycle,
             SchedulerOptions {
                 frame_budget_ms: options.frame_budget_ms,
@@ -645,7 +661,7 @@ impl HostDocument {
 /// passed explicitly because ouroboros's generated `BorrowedMutFields` type is
 /// internal to the macro and cannot be named here.
 fn set_selection(
-    lifecycle: &mut LifecycleManager<'static, RealClock>,
+    lifecycle: &mut LifecycleManager<'static, dyn Clock + 'static>,
     doc: &DocumentModel<'_>,
     selected_chunks: &mut BTreeSet<u32>,
     selection: &mut Option<Selection>,
