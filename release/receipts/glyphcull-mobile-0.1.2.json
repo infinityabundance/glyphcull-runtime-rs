@@ -3,10 +3,10 @@
   "repository": "https://github.com/infinityabundance/glyphcull-runtime-rs.git",
   "package": "glyphcull-mobile",
   "version": "0.1.2",
-  "git_commit": "c7d0feccc7b8c0b00d7ec20fe63c6135eb7ece0c",
+  "git_commit": "4ffbad3ed792f7d065268c25235a218d95fcc30a",
   "git_tree_clean": true,
-  "source_archive_hash": "361f156959f518bbbe96329390335bbf3d0e5b06db1a63c0d848266725c3ab1c",
-  "package_archive_hash": "80fc2c42467024f7a16da84529d98b4c458b9b1fcd517b61749c69daea77a2f4",
+  "source_archive_hash": "115e62b34cf3b64ee240117f5bc50c681de575807a16a96ebf2c590e12b2c1d6",
+  "package_archive_hash": "11a4e250b4215d63ac8be8408b770bd4a03be8cf2a2190e155c01ceff52c93a6",
   "toolchain": {
     "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
@@ -25,5 +25,5 @@
     "conformance": "pass",
     "package_dry_run": "pass"
   },
-  "release_timestamp": "2026-08-07T19:06:21Z"
+  "release_timestamp": "2026-08-07T19:20:36Z"
 }

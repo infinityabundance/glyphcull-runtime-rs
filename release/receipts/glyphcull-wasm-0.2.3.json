@@ -3,10 +3,10 @@
   "repository": "https://github.com/infinityabundance/glyphcull-runtime-rs.git",
   "package": "glyphcull-wasm",
   "version": "0.2.3",
-  "git_commit": "c7d0feccc7b8c0b00d7ec20fe63c6135eb7ece0c",
+  "git_commit": "4ffbad3ed792f7d065268c25235a218d95fcc30a",
   "git_tree_clean": true,
-  "source_archive_hash": "361f156959f518bbbe96329390335bbf3d0e5b06db1a63c0d848266725c3ab1c",
-  "package_archive_hash": "0e6a582b3a99326e573f3d686818ef689daed24c0948558f6a7e963cced03dd6",
+  "source_archive_hash": "115e62b34cf3b64ee240117f5bc50c681de575807a16a96ebf2c590e12b2c1d6",
+  "package_archive_hash": "5a60b7cfacdc6ec655179828387b53fb53826c27d0c22803591221aeea7357b4",
   "toolchain": {
     "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
@@ -25,5 +25,5 @@
     "conformance": "pass",
     "package_dry_run": "pass"
   },
-  "release_timestamp": "2026-08-07T19:04:35Z"
+  "release_timestamp": "2026-08-07T19:18:54Z"
 }
