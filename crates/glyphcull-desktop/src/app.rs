@@ -2,9 +2,11 @@
 //! [`DesktopDocument`] — the desktop face of the six-operation runtime API.
 
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -15,6 +17,7 @@ use glyphcull_core::reader::parse;
 use glyphcull_core::selection::TextPosition;
 use glyphcull_core::visibility::Viewport;
 use glyphcull_host::{HostDocument, HostError, HostOptions};
+use glyphcull_render::renderer::straighten_premultiplied_rgba8;
 
 use crate::input::{self, WheelDelta};
 use crate::sink::DesktopSink;
@@ -152,6 +155,15 @@ impl DesktopDocument {
         self.host.destroy();
     }
 
+    /// Capture the last presented frame as tightly packed premultiplied RGBA8
+    /// (device pixels) — the host diagnostic behind the binary's
+    /// `--screenshot` mode (DESIGN.md D31). Returns `None` if no frame has
+    /// been drawn yet or the capture fails.
+    #[must_use]
+    pub fn capture_last_frame(&mut self) -> Option<Vec<u8>> {
+        self.host.capture_last_frame()
+    }
+
     // --- input wiring (winit events → the operations) ---
 
     fn on_resize(&mut self, width: u32, height: u32) {
@@ -209,7 +221,39 @@ impl DesktopDocument {
 struct DesktopApp {
     bytes: Vec<u8>,
     options: HostOptions,
+    window_size: Option<(u32, u32)>,
+    scroll_y: Option<f32>,
+    screenshot: Option<PathBuf>,
+    screenshot_taken: bool,
     document: Option<DesktopDocument>,
+}
+
+impl DesktopApp {
+    /// Write the current frame as a straight-RGBA8 PNG (the premultiplied
+    /// capture is un-premultiplied to the PNG storage convention).
+    fn write_screenshot(&mut self) -> Result<(), DesktopError> {
+        let document = self.document.as_mut().ok_or_else(|| {
+            DesktopError::Renderer("no frame to capture (no document)".to_string())
+        })?;
+        let rgba = document.capture_last_frame().ok_or_else(|| {
+            DesktopError::Renderer("frame capture failed or no frame drawn".to_string())
+        })?;
+        let size = document.window.inner_size();
+        let straight = straighten_premultiplied_rgba8(&rgba);
+        let path = self
+            .screenshot
+            .clone()
+            .ok_or_else(|| DesktopError::Renderer("screenshot path missing".to_string()))?;
+        encode_png(&straight, size.width, size.height, &path)?;
+        self.screenshot_taken = true;
+        eprintln!(
+            "glyphcull-desktop: wrote {} ({}×{} device px)",
+            path.display(),
+            size.width,
+            size.height
+        );
+        Ok(())
+    }
 }
 
 impl ApplicationHandler for DesktopApp {
@@ -217,17 +261,37 @@ impl ApplicationHandler for DesktopApp {
         if self.document.is_some() {
             return;
         }
-        let window =
-            match event_loop.create_window(Window::default_attributes().with_title("GlyphCull")) {
-                Ok(window) => Arc::new(window),
-                Err(error) => {
-                    eprintln!("glyphcull-desktop: window: {error}");
-                    event_loop.exit();
-                    return;
-                }
-            };
+        let mut attributes = Window::default_attributes().with_title("GlyphCull");
+        if let Some((width, height)) = self.window_size {
+            // `--size` pins the physical window size; the smoke harness pairs
+            // this with a forced dpr of 1 so the capture is 1:1 with the
+            // golden geometry.
+            attributes = attributes.with_inner_size(PhysicalSize::new(width, height));
+        }
+        let window = match event_loop.create_window(attributes) {
+            Ok(window) => Arc::new(window),
+            Err(error) => {
+                eprintln!("glyphcull-desktop: window: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
         match DesktopDocument::load(window, &self.bytes, self.options) {
-            Ok(document) => {
+            Ok(mut document) => {
+                // `--scroll`: move the viewport before the first paint so the
+                // capture shows a scrolled frame (smoke validation of the
+                // streamed/imagery content).
+                if let Some(y) = self.scroll_y {
+                    let viewport = Viewport {
+                        y,
+                        ..document.viewport()
+                    };
+                    if let Err(error) = document.scroll(viewport, Direction::Down) {
+                        eprintln!("glyphcull-desktop: scroll: {error}");
+                        event_loop.exit();
+                        return;
+                    }
+                }
                 document.window.request_redraw();
                 self.document = Some(document);
             }
@@ -273,23 +337,81 @@ impl ApplicationHandler for DesktopApp {
                 if let Err(error) = document.paint() {
                     eprintln!("glyphcull-desktop: paint: {error}");
                 }
+                // `--screenshot`: capture the frame just drawn, then exit.
+                if self.screenshot.is_some() && !self.screenshot_taken {
+                    match self.write_screenshot() {
+                        Ok(()) => event_loop.exit(),
+                        Err(error) => {
+                            eprintln!("glyphcull-desktop: {error}");
+                            event_loop.exit();
+                        }
+                    }
+                }
             }
             _ => {}
         }
     }
 }
 
+/// How the desktop host launches: the optional window size, the optional
+/// `--screenshot` target, and the optional initial scroll (the smoke/validation
+/// mode).
+#[derive(Debug, Clone, Default)]
+pub struct HostLaunch {
+    /// Force the physical window inner size (device pixels).
+    pub window_size: Option<(u32, u32)>,
+    /// Capture the first painted frame to this PNG path, then exit.
+    pub screenshot: Option<PathBuf>,
+    /// Scroll the viewport to this document y before the first paint.
+    pub scroll_y: Option<f32>,
+}
+
 /// Open a window for a `.cull` package and run the event loop until the
 /// window closes. `options` seeds the host (the viewport is then taken from
 /// the real window size).
 pub fn run(bytes: &[u8], options: HostOptions) -> Result<(), DesktopError> {
+    run_with(bytes, options, HostLaunch::default())
+}
+
+/// [`run`] with an explicit launch configuration (window size, screenshot).
+pub fn run_with(
+    bytes: &[u8],
+    options: HostOptions,
+    launch: HostLaunch,
+) -> Result<(), DesktopError> {
     let event_loop = EventLoop::new().map_err(|e| DesktopError::Window(e.to_string()))?;
     let mut app = DesktopApp {
         bytes: bytes.to_vec(),
         options,
+        window_size: launch.window_size,
+        scroll_y: launch.scroll_y,
+        screenshot: launch.screenshot,
+        screenshot_taken: false,
         document: None,
     };
     event_loop
         .run_app(&mut app)
         .map_err(|e| DesktopError::Window(e.to_string()))
+}
+
+/// Encode straight RGBA8 as a PNG at `path` (the `png` crate's fast path;
+/// deterministic encoder settings).
+fn encode_png(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    path: &std::path::Path,
+) -> Result<(), DesktopError> {
+    let file = std::fs::File::create(path)
+        .map_err(|e| DesktopError::Renderer(format!("create {path:?}: {e}")))?;
+    let mut encoder = png::Encoder::new(file, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder
+        .write_header()
+        .map_err(|e| DesktopError::Renderer(format!("png header: {e}")))?;
+    writer
+        .write_image_data(rgba)
+        .map_err(|e| DesktopError::Renderer(format!("png data: {e}")))?;
+    Ok(())
 }

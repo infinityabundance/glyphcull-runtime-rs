@@ -16,6 +16,12 @@
 //! this single source is the one logical program for every backend (the tests
 //! validate the WGSL and its GLSL/SPIR-V translations with naga). The GLSL
 //! written by hand in the JS runtime expresses the same math.
+//!
+//! Sampling phase (DESIGN.md D28, corrected): the fragment samples at
+//! `uv·size − 0.5` (GL/Vulkan convention); the glyph UVs are shifted by half a
+//! texel at plan flattening (`renderer::flatten_plan`) so the physical sample
+//! equals the CPU reference's pixel center — exactly the compensation the JS
+//! renderer's vertex shader applies.
 
 /// The combined vertex + fragment shader source (WGSL). One module, two
 /// entry points (`vs_main`, `fs_main`).

@@ -18,9 +18,16 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::plan::{PlanOp, RenderPlan};
 use crate::shader::MSDF_WGSL;
+
+/// The readback row alignment wgpu requires for buffer→texture copies
+/// (COPY_BYTES_PER_ROW_ALIGNMENT); rows are padded to it and compacted on
+/// read.
+const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
 
 /// Premultiply RGBA8 texels in place of a copy (alpha-scaled channels). The
 /// MSDF program treats `texture.rgb` as a coverage field, so a transparent
@@ -39,9 +46,229 @@ fn premultiply_rgba8(pixels: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The copy row byte width for a texture of `width` pixels (4 bytes/pixel),
+/// padded to wgpu's COPY_BYTES_PER_ROW_ALIGNMENT.
+#[must_use]
+pub fn align_row_bytes(width: u32) -> u32 {
+    let bytes = width * 4;
+    (bytes + COPY_BYTES_PER_ROW_ALIGNMENT - 1) & !(COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+}
+
+/// Compact a padded, possibly BGRA8 readback into tightly packed RGBA8
+/// (row-major, top-to-bottom): strips the per-row padding and swaps R/B when
+/// the source format is BGRA. Pure (unit-tested); the GPU path only produces
+/// the padded bytes.
+#[must_use]
+pub fn compact_rgba8(
+    raw: &[u8],
+    bytes_per_row: u32,
+    width: u32,
+    height: u32,
+    bgra: bool,
+) -> Vec<u8> {
+    let bytes_per_row = bytes_per_row as usize;
+    let width = width as usize;
+    let height = height as usize;
+    let mut out = Vec::with_capacity(width * height * 4);
+    for row in 0..height {
+        let start = row * bytes_per_row;
+        for px in 0..width {
+            let i = start + px * 4;
+            // Bounds-checked reads (the workspace denies indexing/slicing);
+            // the slice is exactly `bytes_per_row * height` bytes by
+            // construction, so these never fall back.
+            let r = raw.get(i).copied().unwrap_or(0);
+            let g = raw.get(i + 1).copied().unwrap_or(0);
+            let b = raw.get(i + 2).copied().unwrap_or(0);
+            let a = raw.get(i + 3).copied().unwrap_or(0);
+            if bgra {
+                out.push(b);
+                out.push(g);
+                out.push(r);
+                out.push(a);
+            } else {
+                out.push(r);
+                out.push(g);
+                out.push(b);
+                out.push(a);
+            }
+        }
+    }
+    out
+}
+
+/// Convert premultiplied RGBA8 (the framebuffer/capture convention) to
+/// straight RGBA8 (the PNG storage convention): divide the channels by alpha
+/// where drawn, zero elsewhere. Uses the reference compositor's exact formula
+/// (`round(channel · 255 / alpha)`, clamped) so a capture's PNG bytes match
+/// what the reference would encode from the same premultiplied value.
+#[must_use]
+pub fn straighten_premultiplied_rgba8(pixels: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(pixels.len());
+    for chunk in pixels.chunks_exact(4) {
+        let a = chunk.get(3).copied().unwrap_or(0);
+        if a == 0 {
+            out.extend_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        let un = |channel: u8| {
+            let value = (f32::from(channel) * 255.0) / f32::from(a);
+            value.round().clamp(0.0, 255.0) as u8
+        };
+        out.push(un(chunk.first().copied().unwrap_or(0)));
+        out.push(un(chunk.get(1).copied().unwrap_or(0)));
+        out.push(un(chunk.get(2).copied().unwrap_or(0)));
+        out.push(a);
+    }
+    out
+}
+
+/// The half-texel UV shift for glyph sampling (DESIGN.md D28, corrected):
+/// wgpu — like GL/Vulkan — samples at `uv·size − 0.5` (texel centers at
+/// integers), while the CPU reference and the Canvas 2D fallback sample at
+/// pixel centers (`uv·size`). The JS WebGL renderer compensates in its
+/// vertex stage; the Rust renderer applies the same `+0.5/size` shift at plan
+/// flattening so all agree. Images are deliberately **not** shifted: the
+/// reference image path uses the raw `−0.5` convention explicitly.
+#[must_use]
+pub fn glyph_half_texel_shift(width: u32, height: u32) -> [f32; 2] {
+    [0.5 / width.max(1) as f32, 0.5 / height.max(1) as f32]
+}
+
+/// Flatten a plan into interleaved vertex data (9 f32 per vertex) and draw
+/// ranges `(start vertex, count, texture handle)`, applying the glyph
+/// half-texel UV shift to every `GlyphBatch` op (the shift needs the texture
+/// pixel size, which the pure plan builder does not know). Pure and
+/// deterministic (unit-tested); `draw` only uploads the result.
+fn flatten_plan(
+    plan: &RenderPlan,
+    texture_size: impl Fn(u32) -> Option<(u32, u32)>,
+) -> (Vec<f32>, Vec<(u32, u32, u32)>) {
+    let mut vertex_data: Vec<f32> = Vec::new();
+    let mut ops: Vec<(u32, u32, u32)> = Vec::new(); // (start vertex, count, texture)
+    for op in &plan.ops {
+        let (vertices, texture, half_texel) = match op {
+            PlanOp::GlyphBatch { texture, vertices } => {
+                let shift = texture_size(*texture).map(|(w, h)| glyph_half_texel_shift(w, h));
+                (vertices, *texture, shift)
+            }
+            PlanOp::Quad { texture, vertices } => (vertices, *texture, None),
+        };
+        let start = (vertex_data.len() / 9) as u32;
+        for vertex in vertices {
+            if let Some([hu, hv]) = half_texel {
+                let mut shifted = *vertex;
+                shifted.uv = [shifted.uv[0] + hu, shifted.uv[1] + hv];
+                vertex_data.extend_from_slice(&shifted.as_floats());
+            } else {
+                vertex_data.extend_from_slice(&vertex.as_floats());
+            }
+        }
+        ops.push((start, vertices.len() as u32, texture));
+    }
+    (vertex_data, ops)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::premultiply_rgba8;
+    #![allow(clippy::indexing_slicing)]
+
+    use super::{
+        align_row_bytes, compact_rgba8, flatten_plan, glyph_half_texel_shift, premultiply_rgba8,
+        straighten_premultiplied_rgba8,
+    };
+    use crate::plan::{PlanOp, RenderPlan, Vertex, ViewUniform};
+
+    /// One vertex with the given UV.
+    fn vertex(uv: [f32; 2]) -> Vertex {
+        Vertex {
+            pos: [0.0, 0.0],
+            uv,
+            color: [1.0, 1.0, 1.0, 1.0],
+            px_range: 4.0,
+        }
+    }
+
+    /// Read a vertex back out of flattened data (9 f32 per vertex).
+    fn read_vertex(data: &[f32], index: usize) -> Vertex {
+        let base = index * 9;
+        Vertex {
+            pos: [data[base], data[base + 1]],
+            uv: [data[base + 2], data[base + 3]],
+            color: [
+                data[base + 4],
+                data[base + 5],
+                data[base + 6],
+                data[base + 7],
+            ],
+            px_range: data[base + 8],
+        }
+    }
+
+    #[test]
+    fn half_texel_shift_is_per_texel() {
+        assert_eq!(
+            glyph_half_texel_shift(1024, 512),
+            [0.5 / 1024.0, 0.5 / 512.0]
+        );
+        assert_eq!(glyph_half_texel_shift(0, 0), [0.5, 0.5]); // degenerate: clamped to 1
+    }
+
+    #[test]
+    fn flatten_shifts_glyph_uvs_but_not_quads() {
+        // A glyph batch over a 1024×512 texture and a fill quad (white
+        // texture, UV-irrelevant): the glyph UVs move by half a texel, the
+        // quad vertices pass through untouched.
+        let plan = RenderPlan {
+            ops: vec![
+                PlanOp::GlyphBatch {
+                    texture: 100,
+                    vertices: vec![vertex([0.1, 0.2]), vertex([0.3, 0.4])],
+                },
+                PlanOp::Quad {
+                    texture: 1,
+                    vertices: vec![vertex([0.0, 0.0]), vertex([1.0, 1.0])],
+                },
+            ],
+            view: ViewUniform {
+                scale: [0.0, 0.0],
+                offset: [0.0, 0.0],
+            },
+        };
+        let sizes = |handle: u32| match handle {
+            100 => Some((1024, 512)),
+            _ => None,
+        };
+        let (data, ops) = flatten_plan(&plan, sizes);
+        assert_eq!(ops.len(), 2);
+        assert_eq!(ops[0], (0, 2, 100));
+        assert_eq!(ops[1], (2, 2, 1));
+        let hu = 0.5 / 1024.0;
+        let hv = 0.5 / 512.0;
+        assert_eq!(read_vertex(&data, 0).uv, [0.1 + hu, 0.2 + hv]);
+        assert_eq!(read_vertex(&data, 1).uv, [0.3 + hu, 0.4 + hv]);
+        // Quads: untouched (images use the raw uv·size − 0.5 convention).
+        assert_eq!(read_vertex(&data, 2).uv, [0.0, 0.0]);
+        assert_eq!(read_vertex(&data, 3).uv, [1.0, 1.0]);
+    }
+
+    #[test]
+    fn flatten_passes_through_when_the_texture_is_missing() {
+        // An evicted handle: no size lookup, so no shift — the draw skips the
+        // batch anyway (the host re-uploads next frame).
+        let plan = RenderPlan {
+            ops: vec![PlanOp::GlyphBatch {
+                texture: 7,
+                vertices: vec![vertex([0.5, 0.5])],
+            }],
+            view: ViewUniform {
+                scale: [0.0, 0.0],
+                offset: [0.0, 0.0],
+            },
+        };
+        let (data, _ops) = flatten_plan(&plan, |_| None);
+        assert_eq!(read_vertex(&data, 0).uv, [0.5, 0.5]);
+    }
 
     #[test]
     fn premultiply_scales_channels_by_alpha() {
@@ -60,6 +287,70 @@ mod tests {
             vec![39, 78, 19, 100]
         );
     }
+
+    #[test]
+    fn row_alignment_pads_to_the_copy_constant() {
+        assert_eq!(align_row_bytes(1), 256);
+        assert_eq!(align_row_bytes(64), 256);
+        // 800 px × 4 = 3200 bytes → padded to 3328 (13 rows of 256).
+        assert_eq!(align_row_bytes(800), 3328);
+        assert_eq!(align_row_bytes(256), 1024);
+    }
+
+    #[test]
+    fn compact_strips_row_padding_and_swaps_bgra() {
+        // Two rows of 2 px, padded to 256-byte rows; RGBA source.
+        let mut raw = vec![0u8; 256 * 2];
+        raw[0..8].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        raw[256..264].copy_from_slice(&[9, 10, 11, 12, 13, 14, 15, 16]);
+        assert_eq!(
+            compact_rgba8(&raw, 256, 2, 2, false),
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        );
+        // BGRA source: channels are stored B,G,R,A and must be swapped back.
+        assert_eq!(
+            compact_rgba8(&raw, 256, 2, 2, true),
+            vec![3, 2, 1, 4, 7, 6, 5, 8, 11, 10, 9, 12, 15, 14, 13, 16]
+        );
+    }
+
+    #[test]
+    fn straighten_matches_the_reference_formula() {
+        // The contract: a capture's PNG bytes must equal what the reference
+        // compositor encodes from the same premultiplied value —
+        // `round(channel · 255 / alpha)`, clamped. Assert per-channel.
+        let reference = |channel: u8, a: u8| {
+            let value = (f32::from(channel) * 255.0) / f32::from(a);
+            value.round().clamp(0.0, 255.0) as u8
+        };
+        for pixels in [
+            &[255, 255, 255, 255][..],
+            &[100, 200, 50, 100][..],
+            &[200, 30, 180, 64][..],
+            &[39, 78, 19, 100][..],
+            &[7, 28, 45, 64][..],
+            &[1, 2, 3, 1][..],
+        ] {
+            let straight = straighten_premultiplied_rgba8(pixels);
+            for (i, (got, expected)) in straight.iter().zip(pixels).enumerate() {
+                if i == 3 {
+                    assert_eq!(*got, *expected, "alpha passes through");
+                } else {
+                    assert_eq!(*got, reference(*expected, pixels[3]), "{got} vs {expected}");
+                }
+            }
+        }
+        // Fully transparent premultiplied pixels zero out (nothing drawn).
+        assert_eq!(
+            straighten_premultiplied_rgba8(&[0, 0, 0, 0]),
+            vec![0, 0, 0, 0]
+        );
+        // Saturated premultiplied white un-premultiplies to opaque white.
+        assert_eq!(
+            straighten_premultiplied_rgba8(&[120, 120, 120, 120]),
+            vec![255, 255, 255, 120]
+        );
+    }
 }
 
 /// The budget (in bytes) of GPU texture memory the renderer keeps. When an
@@ -69,13 +360,15 @@ mod tests {
 /// (the texture resolver maps (atlas, page)/image → the current handle).
 pub const DEFAULT_TEXTURE_BUDGET: u64 = 128 * 1024 * 1024;
 
-/// A typed renderer initialization error.
+/// A typed renderer error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenderError {
     /// No adapter matched the requested backends.
     NoAdapter(String),
     /// The device request failed.
     Device(String),
+    /// A frame readback (offscreen capture) failed.
+    Readback(String),
 }
 
 impl fmt::Display for RenderError {
@@ -83,6 +376,7 @@ impl fmt::Display for RenderError {
         match self {
             RenderError::NoAdapter(msg) => write!(f, "no adapter: {msg}"),
             RenderError::Device(msg) => write!(f, "device request failed: {msg}"),
+            RenderError::Readback(msg) => write!(f, "frame readback failed: {msg}"),
         }
     }
 }
@@ -180,6 +474,13 @@ impl TextureManager {
             min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
+        // The white texel must be written: a freshly-created texture is not
+        // guaranteed to read as white (on most backends it reads as zeros), and
+        // the MSDF program treats `texture.rgb` as a coverage field — a zero
+        // median would render every fill and ruler fully transparent. This
+        // mirrors the JS renderer's 1×1 white texture upload; the desktop
+        // smoke (D31) pins it pixel-exactly.
+        self.write_texture(&texture, &[255, 255, 255, 255], 1, 1);
         self.insert_entry(handle, texture, view, sampler, 1, 1, 4);
     }
 
@@ -369,6 +670,12 @@ impl TextureManager {
     /// the handle was evicted.
     fn bind_group(&self, handle: u32) -> Option<&wgpu::BindGroup> {
         self.entries.get(&handle).map(|e| &e.bind_group)
+    }
+
+    /// The pixel size of a texture handle (needed for the glyph half-texel
+    /// UV shift at plan flattening), or `None` when evicted.
+    fn texture_size(&self, handle: u32) -> Option<(u32, u32)> {
+        self.entries.get(&handle).map(|e| (e._width, e._height))
     }
 
     /// The current texture byte usage.
@@ -640,20 +947,9 @@ impl Renderer {
 
     /// Draw a render plan into `target` (the full target is the viewport).
     pub fn draw(&mut self, plan: &RenderPlan, target: &wgpu::TextureView) {
-        // Flatten the plan's vertex data and record draw ranges.
-        let mut vertex_data: Vec<f32> = Vec::new();
-        let mut ops: Vec<(u32, u32, u32)> = Vec::new(); // (start vertex, count, texture)
-        for op in &plan.ops {
-            let (vertices, texture) = match op {
-                PlanOp::GlyphBatch { texture, vertices } => (vertices, *texture),
-                PlanOp::Quad { texture, vertices } => (vertices, *texture),
-            };
-            let start = (vertex_data.len() / 9) as u32;
-            for vertex in vertices {
-                vertex_data.extend_from_slice(&vertex.as_floats());
-            }
-            ops.push((start, vertices.len() as u32, texture));
-        }
+        // Flatten the plan (glyph UVs get the half-texel shift) and record
+        // draw ranges.
+        let (vertex_data, ops) = flatten_plan(plan, |handle| self.textures.texture_size(handle));
         let byte_len = vertex_data.len() as u64 * 4;
         self.ensure_vertex_buffer(byte_len);
         if !vertex_data.is_empty() {
@@ -714,6 +1010,107 @@ impl Renderer {
         } else {
             wgpu::PollType::Poll
         })
+    }
+
+    /// Render a plan into an offscreen texture and read it back as tightly
+    /// packed **premultiplied** RGBA8 (device pixels, top-left origin): the
+    /// offscreen target uses the pipeline's non-sRGB format and the same
+    /// clear + premultiplied blend as the surface, so the bytes equal what the
+    /// surface presents (DESIGN.md D31). Row padding is removed and BGRA
+    /// targets are swapped to RGBA. Hosts use this for headless frame capture
+    /// (the desktop `--screenshot` mode) and for native pixel validation.
+    pub fn render_to_rgba(
+        &mut self,
+        plan: &RenderPlan,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>, RenderError> {
+        let width = width.max(1);
+        let height = height.max(1);
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("glyphcull-capture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.target_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&Default::default());
+        self.draw(plan, &view);
+
+        let bytes_per_row = align_row_bytes(width);
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("glyphcull-capture-readback"),
+            size: u64::from(bytes_per_row) * u64::from(height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("glyphcull-capture-copy"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit([encoder.finish()]);
+        self.poll(true)
+            .map_err(|e| RenderError::Readback(e.to_string()))?;
+
+        // Map synchronously: `map_async` then keep polling until the callback
+        // fires (the callback is driven by the device's poll loop).
+        let slice = readback.slice(..);
+        let mapped = AtomicBool::new(false);
+        let notifier = std::sync::Arc::new(mapped);
+        let flag = std::sync::Arc::clone(&notifier);
+        slice.map_async(wgpu::MapMode::Read, move |_| {
+            flag.store(true, Ordering::Release);
+        });
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !notifier.load(Ordering::Acquire) {
+            self.poll(true)
+                .map_err(|e| RenderError::Readback(e.to_string()))?;
+            if Instant::now() >= deadline {
+                return Err(RenderError::Readback(
+                    "buffer map timed out after 30s".to_string(),
+                ));
+            }
+        }
+        let raw = slice.get_mapped_range();
+        let rgba = compact_rgba8(
+            &raw,
+            bytes_per_row,
+            width,
+            height,
+            self.target_format == wgpu::TextureFormat::Bgra8Unorm,
+        );
+        drop(raw);
+        readback.unmap();
+        Ok(rgba)
     }
 
     /// Release every GPU texture (the JS `reuploadAll` counterpart after

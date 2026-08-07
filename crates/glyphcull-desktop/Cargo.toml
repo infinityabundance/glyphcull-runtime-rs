@@ -1,6 +1,8 @@
 [package]
 name = "glyphcull-desktop"
-version.workspace = true
+# 0.1.1: the `--screenshot`/`--size`/`--scroll` headless-capture mode
+# (DESIGN.md D31) behind the demo's desktop smoke; HostLaunch + parse_args.
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -17,6 +19,7 @@ workspace = true
 glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
 glyphcull-host = { version = "0.1.0", path = "../glyphcull-host" }
 glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
+png = "0.17"
 pollster = "0.4"
 wgpu = "26"
 # android-native-activity (not game-activity): the pure-Rust backend, so the

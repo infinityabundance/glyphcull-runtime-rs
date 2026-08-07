@@ -1,8 +1,8 @@
 [package]
 name = "glyphcull-host"
-# 0.1.1: injectable clock (`load_with_clock`) — the wasm binding injects a
-# performance.now clock (SystemTime panics on wasm32-unknown-unknown).
-version = "0.1.1"
+# 0.1.2: `FrameSink::capture` (default None) + `capture_last_frame` — the
+# headless-capture seam behind the desktop `--screenshot` mode (D31).
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

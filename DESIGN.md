@@ -252,13 +252,17 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
 
 ## D28. Sampling convention and target formats (render)
 
-- **Pixel-center sampling (DESIGN.md D9)**: the CPU reference samples texel centers at
-  `(i + 0.5)` in texel space. wgpu normalizes the half-texel phase across backends
-  (Vulkan-style), so the WGSL shader samples texel centers directly from the stamp UVs
-  — no shift. The JS WebGL renderer applies a `+0.5/size` UV shift because GLSL's
-  `texture2D` samples at `uv·size − 0.5`; the Canvas 2D fallback is phase-exact. All
-  three agree with the reference within tolerance; pinned by
-  `tests/validation.rs::stamps_and_plan_agree_on_the_sampling_convention`.
+- **Glyph half-texel phase (corrected by the desktop smoke, D31)**: the CPU reference and
+  the Canvas 2D fallback sample at pixel centers — texel coordinate `uv·size`, integer =
+  texel center. wgpu — like GL and Vulkan — samples at `uv·size − 0.5`, so a plan using
+  the stamp UVs as-is is half a texel off on every glyph edge (a 0.5 texel shift; the
+  pixel validation failed at mean 0.0173 vs the 1/64 limit before the fix). The JS WebGL
+  renderer compensates with a `+0.5/size` vertex UV shift; the Rust renderer applies the
+  same shift at plan flattening (`renderer::flatten_plan`, `glyph_half_texel_shift`),
+  where the texture pixel size is known. Images are deliberately **not** shifted: the
+  reference image path uses the raw `uv·size − 0.5` convention explicitly, so unshifted
+  image quads match. Pinned by the flatten-shift unit tests and, pixel-exactly, by the
+  demo's desktop smoke (DESIGN.md D31).
 - **Non-sRGB targets**: the pipeline requires a non-sRGB target format so the
   premultiplied u32 colors and the MSDF distance channels are stored raw (an sRGB
   target would re-encode the shader output — double-encoding our already-sRGB colors,
@@ -267,6 +271,27 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
 - **One logical program**: wgpu compiles the single WGSL source to GLSL (gles backend)
   and SPIR-V (Vulkan) via naga; the tests validate both translations headlessly. The
   JS's hand-written GLSL expresses the same math.
+- **The white texture is a real 1×1 texel**: fills and rulers sample the white texture
+  as a coverage field, so its texel must be uploaded (`255,255,255,255`) — a
+  freshly-created texture is not guaranteed to read as white, and a zero median would
+  render every fill and ruler fully transparent (caught by the desktop smoke).
+
+## D31. Headless frame capture (render, host, desktop)
+
+- **The capture seam**: `FrameSink::capture()` (default `None`) returns the last
+  presented frame as tightly packed premultiplied RGBA8; `HostDocument::capture_last_frame`
+  delegates to it. This is a host diagnostic for visual verification — not part of the
+  six-operation runtime API.
+- **Deterministic re-render, not surface readback**: `Renderer::render_to_rgba` renders
+  the last plan into an offscreen texture (the pipeline's non-sRGB format, same
+  clear + premultiplied blend as the surface) and reads it back — surface readback is
+  backend-fragile (and impossible on wgpu canvases in headless Chromium, D10), while a
+  re-render is byte-deterministic.
+- **The desktop `--screenshot` mode**: the binary captures the first painted frame to a
+  PNG (`--screenshot out.png [--size WxH] [--scroll y]`) and exits; the demo's
+  `scripts/desktop-smoke.sh` builds it, runs it on a real display (or Xvfb) against
+  every fixture, and validates the captures against the CPU reference under D3 — the
+  native pixel validation of the renderer and the visual smoke of the winit host.
 
 ## D29. The host is a self-referential document pipeline (glyphcull-host)
 

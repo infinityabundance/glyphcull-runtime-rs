@@ -120,9 +120,11 @@ fn the_full_pipeline_produces_in_bounds_uvs_for_every_quad() {
 
 #[test]
 fn stamps_and_plan_agree_on_the_sampling_convention() {
-    // D28: the plan uses the stamp UVs as-is (wgpu normalizes the half-texel
-    // phase; the JS WebGL renderer shifts by +0.5/size). Assert the plan's
-    // glyph quad UVs equal the stamp UVs exactly.
+    // D28 (corrected by the desktop smoke, D31): the plan carries the stamp UVs
+    // as-is — the half-texel shift for the GPU's `uv·size − 0.5` sampling is
+    // applied at plan flattening in the renderer (`flatten_plan`, where the
+    // texture size is known), mirroring the JS renderer's vertex-stage shift.
+    // Assert the plan's glyph quad UVs equal the stamp UVs exactly.
     let pkg = parse(GOLDEN).expect("parses");
     let doc = build_document(&pkg).expect("builds");
     let atlases = pkg.atlases().expect("atlases").expect("present");

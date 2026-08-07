@@ -1,8 +1,8 @@
 [package]
 name = "glyphcull-render"
-# 0.1.1: premultiply image uploads (transparent texels with non-zero RGB
-# must never read as ink) — matches the JS WebGL upload convention.
-version = "0.1.1"
+# 0.1.2: glyph half-texel sampling shift (D28 corrected) + the white texture
+# texel upload (fills/rulers were transparent); adds `render_to_rgba` capture.
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

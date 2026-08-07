@@ -259,6 +259,17 @@ fn scroll_materializes_visible_text_and_paint_emits_glyph_batches() {
 }
 
 #[test]
+fn capture_defaults_to_none_without_a_gpu_sink() {
+    // The FrameSink capture hook is opt-in: a host over a recording sink (and
+    // the wasm sink, which reads the DOM canvas instead) reports no capture.
+    // The desktop sink overrides it (its own tests + the demo smoke run).
+    let (mut host, _sink) = host_with_sink();
+    host.paint().expect("paints");
+    assert_eq!(host.capture_last_frame(), None);
+    assert_eq!(host.capture_last_frame(), None); // idempotent
+}
+
+#[test]
 fn paint_before_any_scroll_uses_the_initial_viewport() {
     let (mut host, sink) = host_with_sink();
     host.paint().expect("paints");

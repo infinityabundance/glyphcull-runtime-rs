@@ -4,6 +4,39 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Fixed (0.1.2 / 0.1.2 / 0.1.1 — desktop visual smoke, 2026-08-07; two renderer defects found by native pixel validation)
+
+- **Glyph sampling phase (D28, corrected)**: wgpu samples at `uv·size − 0.5`; the
+  renderer now shifts glyph UVs by half a texel at plan flattening
+  (`renderer::flatten_plan` + `glyph_half_texel_shift`, where the texture size is
+  known), matching the CPU reference and the JS renderer's vertex-stage shift.
+  Image quads are deliberately unshifted (the reference image path uses the raw
+  `−0.5` convention). Previously every glyph edge was half a texel off — invisible to
+  all functional validation because headless Chromium cannot read back wgpu canvases
+  (D10).
+- **White texture never written**: fills and rulers sample the renderer's 1×1 white
+  texture as a coverage field; `ensure_white` created the texture but never uploaded
+  the texel, so it read as zeros on real GPUs and every fill/ruler rendered fully
+  transparent. The white texel is now uploaded; the section ruler in the flagship
+  fixture is the pixel regression.
+
+### Added (Phase 4.11 follow-up — headless frame capture + desktop smoke)
+
+- `glyphcull-render`: `Renderer::render_to_rgba` — offscreen render + readback of a
+  plan as tightly packed premultiplied RGBA8 (row padding stripped, BGRA swapped),
+  plus the pure `compact_rgba8`/`straighten_premultiplied_rgba8`/`flatten_plan`
+  helpers (unit-tested).
+- `glyphcull-host`: `FrameSink::capture` (default `None`) and
+  `HostDocument::capture_last_frame` — a host diagnostic, not part of the six-op API.
+- `glyphcull-desktop`: `--screenshot <path> [--size WxH] [--scroll y]` — capture the
+  first painted frame to a PNG and exit (DESIGN.md D31); `HostLaunch`;
+  `parse_args` (unit-tested).
+- The demo's `scripts/desktop-smoke.sh` builds the binary, runs it on a real display
+  (or Xvfb) against every fixture, and validates each capture against the CPU
+  reference compositor under the D3 tolerance policy — the first native pixel
+  validation of the Rust renderer (all seven cases pass, mean 0.0002–0.0045 vs the
+  1/64 limit). Evidence: `glyphcull-demo/docs/desktop-smoke.md`.
+
 ### Fixed (patch releases 0.1.1 / 0.2.1 — crates.io parity with HEAD)
 
 - `glyphcull-core` 0.1.1: the clock generics accept `?Sized` clocks

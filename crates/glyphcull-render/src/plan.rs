@@ -6,10 +6,14 @@
 //! plays it back, and tests can assert batching, z-order, vertex data, and
 //! the premultiplied color math without a GPU.
 //!
-//! Sampling convention (DESIGN.md D28): wgpu normalizes the half-texel phase
-//! across backends, so glyph UVs are used as-is (the JS WebGL renderer shifts
-//! them by +0.5/size to compensate for GLSL's phase; the CPU reference and
-//! the wgpu renderer agree directly).
+//! Sampling convention (DESIGN.md D28, corrected): wgpu samples at
+//! `uv·size − 0.5` like GL/Vulkan, so the plan carries the stamp UVs as-is
+//! and the renderer shifts glyph UVs by half a texel at flatten time
+//! (`renderer::flatten_plan`), where the texture size is known — the same
+//! compensation the JS WebGL renderer applies in its vertex shader (the JS
+//! shifts by +0.5/size; the CPU reference and the Canvas 2D fallback sample
+//! at pixel centers directly). Image quads are not shifted (the reference
+//! image path uses the raw −0.5 convention).
 
 use glyphcull_core::draw_list::{DrawCommand, DrawList};
 

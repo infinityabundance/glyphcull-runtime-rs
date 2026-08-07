@@ -22,6 +22,12 @@ pub(crate) struct DesktopSink {
     renderer: Renderer,
     surface: wgpu::Surface<'static>,
     format: wgpu::TextureFormat,
+    /// The surface size in device pixels (updated on resize).
+    size: (u32, u32),
+    /// The last drawn plan, re-rendered offscreen for `--screenshot`
+    /// (DESIGN.md D31) — rendering is deterministic, so the capture equals
+    /// the presented frame.
+    last_plan: Option<RenderPlan>,
 }
 
 impl DesktopSink {
@@ -29,6 +35,9 @@ impl DesktopSink {
     /// device. Call from a context that can block (the event loop's
     /// `resumed`); the caller owns the block via `pollster`.
     pub(crate) async fn new(window: Arc<Window>) -> Result<Self, String> {
+        // Read the size first: `create_surface(window)` moves the Arc into
+        // the `'static` surface (the window handle keeps it alive).
+        let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY | wgpu::Backends::GL,
             ..Default::default()
@@ -64,6 +73,8 @@ impl DesktopSink {
             renderer: Renderer::from_device(device, queue, format, DEFAULT_TEXTURE_BUDGET),
             surface,
             format,
+            size: (size.width, size.height),
+            last_plan: None,
         })
     }
 }
@@ -105,6 +116,9 @@ impl FrameSink for DesktopSink {
         _surface_w: f32,
         _surface_h: f32,
     ) -> Result<(), String> {
+        // Keep the plan for `--screenshot` capture (DESIGN.md D31): the
+        // capture re-renders it offscreen, which is byte-deterministic.
+        self.last_plan = Some(plan.clone());
         let frame = self
             .surface
             .get_current_texture()
@@ -116,6 +130,7 @@ impl FrameSink for DesktopSink {
     }
 
     fn resize(&mut self, width: u32, height: u32) {
+        self.size = (width.max(1), height.max(1));
         self.surface.configure(
             self.renderer.device(),
             &wgpu::SurfaceConfiguration {
@@ -129,6 +144,18 @@ impl FrameSink for DesktopSink {
                 desired_maximum_frame_latency: 2,
             },
         );
+    }
+
+    fn capture(&mut self) -> Option<Vec<u8>> {
+        let plan = self.last_plan.as_ref()?;
+        let (width, height) = self.size;
+        self.renderer
+            .render_to_rgba(plan, width, height)
+            .map_err(|e| {
+                eprintln!("glyphcull-desktop: capture: {e}");
+                e
+            })
+            .ok()
     }
 
     fn destroy(&mut self) {

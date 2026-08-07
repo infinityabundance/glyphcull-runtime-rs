@@ -21,7 +21,14 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
 - [x] **4.9 glyphcull-render**: wgpu init lifecycle; WebGPU backend; GL fallback; MSDF
       shaders (WGSL); texture management; device-loss recovery.
 - [x] **4.10 glyphcull-wasm**: wasm32 bindings; tiny API; memory budget reporting.
-- [x] **4.11 glyphcull-desktop**: winit host; input wiring; windowing.
+- [x] **4.11 glyphcull-desktop**: winit host; input wiring; windowing. **Visually verified**
+      on a real display (2026-08-07): the binary captures the first painted frame
+      (`--screenshot`/`--size`/`--scroll`, DESIGN.md D31) and the demo's
+      `scripts/desktop-smoke.sh` validates every fixture's capture against the CPU
+      reference compositor under the D3 tolerance policy — all seven cases pass. This
+      first native pixel validation found and fixed two renderer defects (glyph
+      half-texel phase, D28 corrected; the never-written white texture), each with
+      regression coverage.
 - [x] **4.12 Mobile targets**: Android target build verification (CI builds the library
       targets for both ABIs); the mobile host crate is recorded as a future candidate with
       core/render/host readiness demonstrated (winit compiles for Android via the pure-Rust

@@ -189,6 +189,13 @@ pub trait FrameSink {
     ) -> Result<(), String>;
     /// Resize the drawing surface (device pixels).
     fn resize(&mut self, width: u32, height: u32);
+    /// Optionally capture the last presented frame as tightly packed
+    /// premultiplied RGBA8 (device pixels, top-left origin). Hosts without a
+    /// readable GPU surface return `None` (the default); the desktop host
+    /// re-renders the last plan offscreen for `--screenshot` (DESIGN.md D31).
+    fn capture(&mut self) -> Option<Vec<u8>> {
+        None
+    }
     /// Release GPU resources.
     fn destroy(&mut self);
 }
@@ -629,6 +636,15 @@ impl HostDocument {
                 None => String::new(),
             })
         })
+    }
+
+    /// Capture the last presented frame as tightly packed premultiplied RGBA8
+    /// (device pixels, top-left origin) — a host diagnostic for visual
+    /// verification, not part of the six-operation runtime API. Returns `None`
+    /// when the sink cannot capture (wasm, recording sinks); the desktop sink
+    /// re-renders the last plan offscreen (DESIGN.md D31).
+    pub fn capture_last_frame(&mut self) -> Option<Vec<u8>> {
+        self.with_mut(|fields| fields.sink.capture())
     }
 
     /// Release every resource; idempotent. All other calls then reject.
