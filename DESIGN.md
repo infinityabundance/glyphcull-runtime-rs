@@ -388,6 +388,18 @@ and the lifecycle differ.
   `(prev − cur)/dpr` doc px, unit-tested; only the first touch is tracked); left-drag
   selects; Esc/back exits. Fling inertia and pinch zoom are recorded roadmap
   candidates, not deferred scope.
+- **On-device pixel validation (0.1.1)**: the emulator smoke (the demo's
+  `scripts/android-emulator-smoke.sh`, KVM + SwiftShader + Xvfb) installs the APK, and
+  the app dumps its D31 offscreen capture once to its data dir (pulled via `run-as`
+  from the debug APK). The capture — the same mechanism the desktop `--screenshot`
+  validates — matched the CPU reference under the D3 policy (mean 0.0069 vs 1/64),
+  the first on-device pixel pass. The emulator's **present path** composites wrongly on
+  this build (gfxstream/SwiftShader: `-no-window` renders black; google_apis offsets
+  presented buffers by the window's content inset; aosp_atd composites nothing and its
+  GL path rejects `Surface::configure`) — a platform defect recorded with evidence in
+  `glyphcull-demo/docs/android-emulator-smoke.md`, which also documents the two real
+  fixes the hunt surfaced: GL downlevel limits and the `GLYPHCULL_WGPU_BACKEND`
+  override.
 
 ## R-series: deliberate divergences from the JS runtime (correctness)
 

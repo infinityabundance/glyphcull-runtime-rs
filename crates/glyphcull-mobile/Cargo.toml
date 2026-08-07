@@ -1,6 +1,10 @@
 [package]
 name = "glyphcull-mobile"
-version = "0.1.0"
+# 0.1.1: the on-device D31 capture dump the emulator smoke validates
+# (Android-only, once per process; pulled via run-as from the debug APK),
+# plus the resumed/resize diagnostics. The APK manifest (demo repo) gained
+# the NoTitleBar.Fullscreen theme and debuggable for the capture pull.
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -21,7 +25,7 @@ workspace = true
 
 [dependencies]
 glyphcull-core = { version = "0.1.1", path = "../glyphcull-core" }
-glyphcull-desktop = { version = "0.1.2", path = "../glyphcull-desktop" }
+glyphcull-desktop = { version = "0.1.3", path = "../glyphcull-desktop" }
 glyphcull-host = { version = "0.1.3", path = "../glyphcull-host" }
 pollster = "0.4"
 # android-native-activity (not game-activity): the pure-Rust backend, so the

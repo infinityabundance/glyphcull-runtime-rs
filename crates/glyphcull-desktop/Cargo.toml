@@ -7,7 +7,12 @@ name = "glyphcull-desktop"
 # the surface is an `Option`; the attach format-selection is pure and
 # unit-tested; render 0.1.4's `retarget_target_format` keeps the pipeline in
 # step with the attached surface.
-version = "0.1.2"
+# 0.1.3: the Android emulator brought two device-level fixes — GL adapters now
+# request `downlevel_webgl2_defaults()` limits (SwiftShader GLES reports no
+# compute; parity with the wasm binding), and `GLYPHCULL_WGPU_BACKEND`
+# (auto|vulkan|gl) overrides the backend mask for device diagnostics; the
+# attach path logs the chosen backend + surface formats.
+version = "0.1.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

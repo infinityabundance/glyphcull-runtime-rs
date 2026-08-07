@@ -42,8 +42,15 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       (`arm64-v8a`, `x86_64`) with the NDK and assembles a signed, zipaligned APK over
       the system's NativeActivity (`com.glyphcull.host`, `assets/doc.cull`, verified by
       apksigner + aapt badging). CI type-checks the crate for both ABIs (the NDK link
-      lives in the Docker pipeline). A visual device run is recorded as a future
-      candidate (no emulator GPU in this environment).
+      lives in the Docker pipeline).
+- [x] **4.13 follow-up: the emulator visual run** (2026-08-07) — the first on-device
+      pixel validation: `scripts/android-emulator-smoke.sh` (KVM + SwiftShader +
+      Xvfb) validated the app's D31 offscreen capture against the CPU reference under
+      the D3 policy (**PASS**, mean 0.0069 vs 1/64; evidence in
+      `glyphcull-demo/docs/android-emulator-smoke.md`). The hunt surfaced two real
+      fixes (GL downlevel limits; `GLYPHCULL_WGPU_BACKEND`) and documented the
+      emulator's broken present path as a platform defect. A physical-device visual
+      run remains the only unexecuted host check.
 - [x] **Test pyramid complete**: unit/integration/property/stress/memory/performance layers
       per subsystem (see TESTING.md); rendering validation vs a committed golden image
       (`crates/glyphcull-render/tests/fixtures/golden-document.png`, headless CPU reference

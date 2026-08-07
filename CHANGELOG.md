@@ -4,6 +4,23 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Fixed + Added (0.1.3 / 0.1.1 — the Android emulator's first on-device pixel validation)
+
+- `glyphcull-desktop` 0.1.3: **GL adapters now request `downlevel_webgl2_defaults()`
+  limits** — SwiftShader's GLES reports no compute support, so `Limits::default()`
+  failed device creation on the Android GL path (parity with the wasm binding's
+  `backend: webgl`); Vulkan is unchanged. New `GLYPHCULL_WGPU_BACKEND`
+  (auto|vulkan|gl) backend override for device diagnostics; the attach path logs the
+  chosen backend + surface formats once.
+- `glyphcull-mobile` 0.1.1: the on-device D31 capture dump (Android-only, once per
+  process — the emulator smoke's authoritative pixel check, pulled via `run-as`) and
+  resumed/resize diagnostics.
+- The demo's `scripts/android-emulator-smoke.sh` validated the Android host's D31
+  capture against the CPU reference under the D3 policy: **PASS** (mean 0.0069 vs
+  1/64). The emulator present path is a recorded platform defect (gfxstream/
+  SwiftShader; offset composition on google_apis, black on aosp_atd) — root cause and
+  evidence in `glyphcull-demo/docs/android-emulator-smoke.md`.
+
 ### Added (0.1.4 / 0.1.2 / 0.1.0 — re-attachable sink + the mobile host, Phase 4.13)
 
 - `glyphcull-render` 0.1.4: `Renderer::retarget_target_format` — rebuild the MSDF

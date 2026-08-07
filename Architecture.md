@@ -276,7 +276,9 @@ quads (mirrors the JS `src/render/drawlist.ts`).
   rebuild the document on `resumed`, drop on `suspended` (DESIGN.md D32); input: wheel
   + touch drag-scroll, drag select. `android_main` is a plain `#[no_mangle]` Rust-ABI
   entry (the workspace's only unsafe surface). The demo repo's Docker pipeline
-  assembles a signed APK for `arm64-v8a` + `x86_64` (`scripts/android-build.sh`).
+  assembles a signed APK for `arm64-v8a` + `x86_64` (`scripts/android-build.sh`) and the
+  emulator smoke pixel-validates the app's D31 capture on-device (PASS under the D3
+  policy; `docs/android-emulator-smoke.md`).
 
 ## 5.1 The shared host (glyphcull-host)
 

@@ -34,10 +34,12 @@ crates/
   glyphcull-wasm/     — wasm32 bindings exposing the identical tiny API.
   glyphcull-desktop/  — native host application (winit + wgpu); `glyphcull-desktop <file.cull>`
                         opens a compiled document in a window; the re-attachable
-                        `DesktopSink` (attach/detach) is shared with mobile.
+                        `DesktopSink` (attach/detach) is shared with mobile; GL adapters
+                        get downlevel limits and a `GLYPHCULL_WGPU_BACKEND` override.
   glyphcull-mobile/   — Android host (winit + wgpu, Phase 4.13): loads the packaged `.cull`
                         from APK assets; same six-op API; APK assembled by the demo's
-                        Docker pipeline.
+                        Docker pipeline and pixel-validated on an emulator (D31 capture,
+                        PASS under the D3 policy).
 ```
 
 ## The runtime is not a browser

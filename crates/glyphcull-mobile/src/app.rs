@@ -160,6 +160,35 @@ impl MobileDocument {
         self.host.capture_last_frame()
     }
 
+    /// Dump the offscreen D31 capture to the app's data dir (Android-only):
+    /// the on-device pixel truth. The emulator's present path can fail to
+    /// composite (gfxstream/SwiftShader), while this capture re-renders the
+    /// last plan offscreen — the same mechanism the desktop `--screenshot`
+    /// smoke validates. The smoke harness pulls it for the D3 comparison.
+    /// Dumped once per process (the first painted frame is the smoke's
+    /// target; later paints skip the write).
+    #[cfg(target_os = "android")]
+    fn dump_capture(&mut self) {
+        let path = std::path::Path::new("/data/data/com.glyphcull.host/frame.rgba");
+        if path.exists() {
+            return;
+        }
+        let Some(rgba) = self.capture_last_frame() else {
+            return;
+        };
+        let (width, height) = {
+            let viewport = self.viewport;
+            (viewport.w.max(1.0) as u32, viewport.h.max(1.0) as u32)
+        };
+        let mut bytes = Vec::with_capacity(8 + rgba.len());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&rgba);
+        if std::fs::write(path, &bytes).is_err() {
+            eprintln!("glyphcull-mobile: capture dump failed");
+        }
+    }
+
     // --- input wiring (winit events → the operations) ---
 
     fn on_resize(&mut self, width: u32, height: u32) {
@@ -167,6 +196,10 @@ impl MobileDocument {
         let mut viewport = self.viewport;
         viewport.w = (width as f32) / self.dpr;
         viewport.h = (height as f32) / self.dpr;
+        eprintln!(
+            "glyphcull-mobile: resize {}x{} dpr={} viewport={}x{}",
+            width, height, self.dpr, viewport.w, viewport.h
+        );
         if self.scroll(viewport, Direction::Down).is_ok() {
             self.window.request_redraw();
         }
@@ -320,6 +353,10 @@ impl ApplicationHandler for MobileApp {
         let dpr = window.scale_factor() as f32;
         let size = window.inner_size();
         let viewport = input::viewport_for_size(size.width, size.height, dpr);
+        eprintln!(
+            "glyphcull-mobile: resumed window={}x{} dpr={} viewport={}x{}",
+            size.width, size.height, dpr, viewport.w, viewport.h
+        );
         let mut document = MobileDocument {
             window,
             host,
@@ -381,6 +418,8 @@ impl ApplicationHandler for MobileApp {
                 if let Err(error) = document.paint() {
                     eprintln!("glyphcull-mobile: paint: {error}");
                 }
+                #[cfg(target_os = "android")]
+                document.dump_capture();
             }
             _ => {}
         }

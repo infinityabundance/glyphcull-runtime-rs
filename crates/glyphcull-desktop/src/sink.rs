@@ -21,6 +21,18 @@ use glyphcull_host::FrameSink;
 use glyphcull_render::plan::{RenderPlan, RendererViewport};
 use glyphcull_render::renderer::{Renderer, DEFAULT_TEXTURE_BUDGET};
 
+/// The wgpu backend mask: `GLYPHCULL_WGPU_BACKEND` (auto|vulkan|gl) overrides
+/// the default (Vulkan + GL fallback). A device diagnostic — e.g. the Android
+/// emulator's SwiftShader Vulkan present path can render black while the GLES
+/// path works; the wasm binding has the equivalent `backend` load option.
+fn backend_mask() -> wgpu::Backends {
+    match std::env::var("GLYPHCULL_WGPU_BACKEND").as_deref() {
+        Ok("vulkan") => wgpu::Backends::VULKAN,
+        Ok("gl") => wgpu::Backends::GL,
+        _ => wgpu::Backends::PRIMARY | wgpu::Backends::GL,
+    }
+}
+
 /// The wgpu host sink over a winit window (WebGPU/GL on desktop and Android).
 pub struct DesktopSink {
     /// The wgpu instance, kept for `attach` (a surface is created from it).
@@ -52,13 +64,20 @@ impl DesktopSink {
         // the `'static` surface (the window handle keeps it alive).
         let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY | wgpu::Backends::GL,
+            backends: backend_mask(),
             ..Default::default()
         });
         let surface = instance
             .create_surface(window)
             .map_err(|e| format!("surface: {e}"))?;
         let (adapter, format) = Self::request_adapter(&instance, Some(&surface)).await?;
+        let capabilities = surface.get_capabilities(&adapter);
+        eprintln!(
+            "glyphcull-desktop: backend={:?} surface formats={:?} present={:?}",
+            adapter.get_info().backend,
+            capabilities.formats,
+            capabilities.present_modes
+        );
         let (device, queue) = Self::request_device(&adapter).await?;
         let renderer = Renderer::from_device(device, queue, format, DEFAULT_TEXTURE_BUDGET);
         Ok(Self {
@@ -122,6 +141,10 @@ impl DesktopSink {
         self.size = (size.width, size.height);
         self.surface = Some(surface);
         self.configure();
+        eprintln!(
+            "glyphcull-desktop: attach window={}x{} format={:?} offered={:?}",
+            size.width, size.height, format, capabilities.formats
+        );
         Ok(())
     }
 
@@ -176,9 +199,19 @@ impl DesktopSink {
     async fn request_device(
         adapter: &wgpu::Adapter,
     ) -> Result<(wgpu::Device, wgpu::Queue), String> {
+        // GL adapters expose downlevel limits — SwiftShader reports no compute
+        // support, so `Limits::default()` makes device creation fail (the
+        // wasm binding hits the same wall and uses the downlevel defaults;
+        // this is the parity fix). WebGPU keeps the full limits.
+        let limits = if adapter.get_info().backend == wgpu::Backend::Gl {
+            wgpu::Limits::downlevel_webgl2_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
         adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("glyphcull-desktop"),
+                required_limits: limits,
                 ..Default::default()
             })
             .await
