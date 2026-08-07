@@ -37,9 +37,9 @@ crates/
                         `DesktopSink` (attach/detach) is shared with mobile; GL adapters
                         get downlevel limits and a `GLYPHCULL_WGPU_BACKEND` override.
   glyphcull-mobile/   — Android host (winit + wgpu, Phase 4.13): loads the packaged `.cull`
-                        from APK assets; same six-op API; APK assembled by the demo's
-                        Docker pipeline and pixel-validated on an emulator (D31 capture,
-                        PASS under the D3 policy).
+                        from APK assets; same six-op API; drag/fling scroll + pinch zoom
+                        (pure `gesture` module); APK assembled by the demo's Docker
+                        pipeline and pixel-validated on an emulator (D31 capture, PASS).
 ```
 
 ## The runtime is not a browser

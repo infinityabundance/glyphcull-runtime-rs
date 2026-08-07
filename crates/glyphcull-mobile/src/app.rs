@@ -5,9 +5,13 @@
 //! window + sink + host from the packaged bytes; `suspended` (background)
 //! drops them — the native window, and therefore the surface, is destroyed on
 //! suspend, and rebuilding on resume is the canonical Android GPU lifecycle
-//! (the wgpu examples do the same). Input: wheel (mice/trackpads) and touch
-//! drag (content follows the finger) scroll; left-drag selects.
+//! (the wgpu examples do the same). Input: wheel (mice/trackpads), touch drag
+//! (content follows the finger), fling/inertia on release (exponential
+//! velocity decay), and pinch zoom (the viewport shrinks around the pinch
+//! midpoint while the surface stays at the window size — the
+//! `scroll_with_surface` seam); left-drag selects.
 
+use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::sync::Arc;
 
@@ -24,6 +28,8 @@ use glyphcull_core::visibility::Viewport;
 use glyphcull_desktop::input::{self, WheelDelta};
 use glyphcull_desktop::DesktopSink;
 use glyphcull_host::{HostDocument, HostError, HostOptions};
+
+use crate::gesture::{self, Fling, FLING_SAMPLE_MS, FLING_STOP_EPSILON};
 
 /// A typed mobile host error.
 #[derive(Debug)]
@@ -62,10 +68,12 @@ impl From<HostError> for MobileError {
 
 /// The document-pixel vertical scroll for a touch move: the content follows
 /// the finger, so swiping up (finger y decreases) scrolls down (positive).
-/// Document px = physical px ÷ dpr. Pure (unit-tested).
+/// Both positions are **document** px (touch locations are converted with
+/// `input::cursor_to_doc`, so the dpr cancels — no extra division). Pure
+/// (unit-tested).
 #[must_use]
-pub fn scroll_delta_for_touch(prev: (f32, f32), cur: (f32, f32), dpr: f32) -> f32 {
-    (prev.1 - cur.1) / dpr
+pub fn scroll_delta_for_touch(prev: (f32, f32), cur: (f32, f32)) -> f32 {
+    prev.1 - cur.1
 }
 
 /// The travel direction implied by a scroll delta (negative = up; zero = Down,
@@ -80,21 +88,37 @@ pub fn direction_for_delta(dy: f32) -> Direction {
 }
 
 /// The mobile document: a window serving the six-operation runtime API
-/// (`load`/`scroll`/`paint`/`select`/`copy`/`destroy`) over the shared sink.
+/// (`load`/`scroll`/`paint`/`select`/`copy`/`destroy`) over the shared sink,
+/// plus the mobile gesture layer (drag/fling scroll, pinch zoom).
 pub struct MobileDocument {
     window: Arc<Window>,
     host: HostDocument,
-    /// The current viewport in document pixels.
+    /// The current viewport in document pixels (may be zoomed: w < canvas.w).
     viewport: Viewport,
     /// The device pixel ratio (physical → logical).
     dpr: f32,
+    /// The drawing surface size in CSS px (the window ÷ dpr) — the host's
+    /// `scroll_with_surface` canvas; the viewport can be smaller (zoom).
+    canvas: (f32, f32),
+    /// The document's fit-width content width (the zoom reference).
+    content_width: f32,
     /// The drag anchor in document space while a drag is in progress.
     drag_anchor: Option<(f32, f32)>,
     /// The last cursor position in physical pixels.
     last_cursor: Option<(f64, f64)>,
-    /// The active touch's id + last document-space position (touch drag
-    /// scrolls; only the first touch is tracked).
-    touch_anchor: Option<(u64, (f32, f32))>,
+    /// Active touches (touch id → document-space position).
+    touches: BTreeMap<u64, (f32, f32)>,
+    /// The previous pinch finger distance (doc px), while two touches are down.
+    pinch_prev_dist: Option<f32>,
+    /// The active fling, if any.
+    fling: Option<Fling>,
+    /// The last fling frame time (dt for the velocity decay).
+    last_frame: Option<std::time::Instant>,
+    /// Recent single-finger drag samples `(elapsed_ms, doc_y)` for the
+    /// release-velocity estimate (newest last).
+    touch_samples: VecDeque<(u64, f32)>,
+    /// The monotonic clock for the sample timestamps.
+    clock: std::time::Instant,
 }
 
 impl MobileDocument {
@@ -112,10 +136,13 @@ impl MobileDocument {
 
     // --- the six operations (delegating to the shared host) ---
 
-    /// Move the viewport and run one materialization cycle.
+    /// Move the viewport and run one materialization cycle. The drawing
+    /// surface stays at the window size (the `scroll_with_surface` seam), so
+    /// a zoomed viewport renders into the full surface — a crisp GPU zoom.
     pub fn scroll(&mut self, viewport: Viewport, direction: Direction) -> Result<(), HostError> {
         self.viewport = viewport;
-        self.host.scroll(viewport, direction)
+        self.host
+            .scroll_with_surface(viewport, direction, self.canvas)
     }
 
     /// Render the current viewport + selection into the window.
@@ -193,9 +220,10 @@ impl MobileDocument {
 
     fn on_resize(&mut self, width: u32, height: u32) {
         self.dpr = self.window.scale_factor() as f32;
-        let mut viewport = self.viewport;
-        viewport.w = (width as f32) / self.dpr;
-        viewport.h = (height as f32) / self.dpr;
+        // The surface follows the window; the viewport resets to it (a
+        // rotation resets the zoom — recorded behavior).
+        self.canvas = ((width as f32) / self.dpr, (height as f32) / self.dpr);
+        let viewport = input::viewport_for_size(width, height, self.dpr);
         eprintln!(
             "glyphcull-mobile: resize {}x{} dpr={} viewport={}x{}",
             width, height, self.dpr, viewport.w, viewport.h
@@ -222,33 +250,147 @@ impl MobileDocument {
         let position = input::cursor_to_doc((touch.location.x, touch.location.y), self.dpr);
         match touch.phase {
             TouchPhase::Started => {
-                if self.touch_anchor.is_none() {
-                    self.touch_anchor = Some((touch.id, position));
+                self.touches.insert(touch.id, position);
+                if self.touches.len() == 2 {
+                    // A pinch begins: stop any fling and clear the drag
+                    // samples (a two-finger gesture is never a fling).
+                    self.fling = None;
+                    self.touch_samples.clear();
+                    self.pinch_prev_dist = Some(self.pinch_distance());
                 }
             }
             TouchPhase::Moved => {
-                let Some((id, previous)) = self.touch_anchor else {
-                    return;
-                };
-                if id != touch.id {
-                    return;
-                }
-                let dy = scroll_delta_for_touch(previous, position, self.dpr);
-                self.touch_anchor = Some((touch.id, position));
-                if dy == 0.0 {
-                    return;
-                }
-                let viewport = input::scrolled_viewport(self.viewport, dy);
-                if self.scroll(viewport, direction_for_delta(dy)).is_ok() {
-                    self.window.request_redraw();
+                self.touches.insert(touch.id, position);
+                if self.touches.len() >= 2 {
+                    // Pinch: zoom around the midpoint (no scrolling, no
+                    // drag samples).
+                    self.touch_samples.clear();
+                    let Some(prev_dist) = self.pinch_prev_dist else {
+                        self.pinch_prev_dist = Some(self.pinch_distance());
+                        return;
+                    };
+                    let dist = self.pinch_distance();
+                    let factor = gesture::pinch_factor(prev_dist, dist);
+                    self.pinch_prev_dist = Some(dist);
+                    if (factor - 1.0).abs() < 1e-4 {
+                        return;
+                    }
+                    let midpoint = self.pinch_midpoint();
+                    let viewport =
+                        gesture::zoom_viewport(self.viewport, factor, midpoint, self.content_width);
+                    if self.scroll(viewport, Direction::Down).is_ok() {
+                        self.window.request_redraw();
+                    }
+                } else {
+                    // Single-finger drag: content follows the finger; record
+                    // the sample for the release-velocity estimate.
+                    let previous = self
+                        .touches
+                        .iter()
+                        .next()
+                        .map(|(_, p)| *p)
+                        .unwrap_or(position);
+                    let dy = scroll_delta_for_touch(previous, position);
+                    let now = self.now_ms();
+                    self.touch_samples.push_back((now, position.1));
+                    let cutoff = now.saturating_sub(FLING_SAMPLE_MS);
+                    while self.touch_samples.front().is_some_and(|(t, _)| *t < cutoff) {
+                        self.touch_samples.pop_front();
+                    }
+                    if dy == 0.0 {
+                        return;
+                    }
+                    let viewport = input::scrolled_viewport(self.viewport, dy);
+                    if self.scroll(viewport, direction_for_delta(dy)).is_ok() {
+                        self.window.request_redraw();
+                    }
                 }
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
-                if self.touch_anchor.is_some_and(|(id, _)| id == touch.id) {
-                    self.touch_anchor = None;
+                self.touches.remove(&touch.id);
+                match self.touches.len() {
+                    0 => {
+                        // Release: fling when the drag was fast (a pinch never
+                        // flings — `pinch_prev_dist` is set during one).
+                        if self.pinch_prev_dist.is_none() {
+                            let samples: Vec<(u64, f32)> =
+                                self.touch_samples.iter().copied().collect();
+                            let velocity = gesture::scroll_release_velocity(&samples);
+                            if velocity.abs() > FLING_STOP_EPSILON {
+                                self.fling = Some(Fling::new(velocity));
+                                self.last_frame = Some(std::time::Instant::now());
+                                self.window.request_redraw();
+                            }
+                        }
+                        self.pinch_prev_dist = None;
+                        self.touch_samples.clear();
+                    }
+                    1 => {
+                        // A pinch ended with one finger still down: it is a
+                        // plain drag now.
+                        self.pinch_prev_dist = None;
+                        self.touch_samples.clear();
+                    }
+                    _ => {}
                 }
             }
         }
+    }
+
+    /// Advance the fling by the time since the last frame; returns whether it
+    /// is still running (the caller keeps requesting redraws while so).
+    fn drive_fling(&mut self) {
+        let Some(mut fling) = self.fling else {
+            return;
+        };
+        let now = std::time::Instant::now();
+        let dt = self
+            .last_frame
+            .map_or(1.0 / 60.0, |last| now.duration_since(last).as_secs_f32())
+            .clamp(0.0, 1.0 / 20.0); // cap: no giant jumps after a stall
+        self.last_frame = Some(now);
+        let dy = fling.step(dt);
+        if fling.stopped() {
+            self.fling = None;
+        } else {
+            self.fling = Some(fling);
+        }
+        if dy == 0.0 {
+            return;
+        }
+        let viewport = input::scrolled_viewport(self.viewport, dy);
+        if self.scroll(viewport, direction_for_delta(dy)).is_ok() {
+            self.window.request_redraw();
+        }
+    }
+
+    /// The distance between the two active touches (doc px).
+    fn pinch_distance(&self) -> f32 {
+        let mut positions = self.touches.values();
+        let Some((x0, y0)) = positions.next().copied() else {
+            return 0.0;
+        };
+        let Some((x1, y1)) = positions.next().copied() else {
+            return 0.0;
+        };
+        ((x1 - x0).powi(2) + (y1 - y0).powi(2)).sqrt()
+    }
+
+    /// The midpoint of the two active touches (doc px) — the zoom anchor.
+    fn pinch_midpoint(&self) -> (f32, f32) {
+        let mut positions = self.touches.values();
+        let Some((x0, y0)) = positions.next().copied() else {
+            return (0.0, 0.0);
+        };
+        let Some((x1, y1)) = positions.next().copied() else {
+            return (x0, y0);
+        };
+        ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+    }
+
+    /// The monotonic clock in ms (for the release-velocity samples).
+    fn now_ms(&self) -> u64 {
+        self.clock.elapsed().as_millis() as u64
     }
 
     fn on_cursor_moved(&mut self, position: (f64, f64)) {
@@ -362,9 +504,16 @@ impl ApplicationHandler for MobileApp {
             host,
             viewport,
             dpr,
+            canvas: (viewport.w, viewport.h),
+            content_width: self.options.content_width,
             drag_anchor: None,
             last_cursor: None,
-            touch_anchor: None,
+            touches: BTreeMap::new(),
+            pinch_prev_dist: None,
+            fling: None,
+            last_frame: None,
+            touch_samples: VecDeque::new(),
+            clock: std::time::Instant::now(),
         };
         // Size the surface to the real window (the host's load used the
         // option defaults).
@@ -420,6 +569,7 @@ impl ApplicationHandler for MobileApp {
                 }
                 #[cfg(target_os = "android")]
                 document.dump_capture();
+                document.drive_fling();
             }
             _ => {}
         }
@@ -446,15 +596,13 @@ mod tests {
     #[test]
     fn touch_scroll_follows_the_finger() {
         // Finger moves up (y decreases): content follows → scroll down
-        // (positive dy, in document px after the dpr division).
-        assert_eq!(scroll_delta_for_touch((0.0, 100.0), (0.0, 50.0), 2.0), 25.0);
+        // (positive dy, in document px — the dpr already cancelled in the
+        // cursor conversion).
+        assert_eq!(scroll_delta_for_touch((0.0, 100.0), (0.0, 50.0)), 50.0);
         // Finger moves down: scroll up (negative).
-        assert_eq!(
-            scroll_delta_for_touch((0.0, 50.0), (0.0, 100.0), 2.0),
-            -25.0
-        );
+        assert_eq!(scroll_delta_for_touch((0.0, 50.0), (0.0, 100.0)), -50.0);
         // Horizontal motion alone does not scroll vertically.
-        assert_eq!(scroll_delta_for_touch((10.0, 50.0), (90.0, 50.0), 1.0), 0.0);
+        assert_eq!(scroll_delta_for_touch((10.0, 50.0), (90.0, 50.0)), 0.0);
     }
 
     #[test]

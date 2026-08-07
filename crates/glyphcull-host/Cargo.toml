@@ -2,7 +2,13 @@
 name = "glyphcull-host"
 # 0.1.3: `FrameSink::capture_readback` + `capture_last_frame_readback` — the
 # un-mapped readback seam the wasm binding maps asynchronously (D31).
-version = "0.1.3"
+# 0.1.4: `scroll_with_surface` — the viewport and the drawing surface decouple
+# (the mobile host's pinch zoom keeps the surface at the window size while the
+# zoomed viewport shrinks; the renderer maps the viewport into the full
+# surface); the sink resize now uses device pixels (canvas × dpr, the
+# `FrameSink::resize` contract) on every scroll — the desktop dpr≠1 path was
+# configuring the surface at CSS pixels.
+version = "0.1.4"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

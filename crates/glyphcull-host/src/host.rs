@@ -458,7 +458,42 @@ impl HostDocument {
 
     /// Move the viewport (document CSS pixels) and run one materialization
     /// cycle. `direction` is the travel direction for scheduling priorities.
+    /// The drawing surface tracks the viewport (the JS runtime's canvas
+    /// semantics): surface size = viewport size.
     pub fn scroll(&mut self, viewport: Viewport, direction: Direction) -> Result<(), HostError> {
+        self.scroll_impl(viewport, direction, None)
+    }
+
+    /// [`Self::scroll`] with an explicit drawing-surface size (CSS px),
+    /// decoupled from the viewport: the mobile host keeps the surface at the
+    /// window size while a zoomed viewport is smaller — the renderer maps the
+    /// zoomed viewport into the full surface, a crisp GPU zoom (the gesture
+    /// module's pinch support). The sink is resized in **device** pixels
+    /// (canvas × dpr; the `FrameSink::resize` contract), and `paint`'s plan
+    /// treats the canvas as the surface's CSS size, so both stay consistent.
+    pub fn scroll_with_surface(
+        &mut self,
+        viewport: Viewport,
+        direction: Direction,
+        canvas: (f32, f32),
+    ) -> Result<(), HostError> {
+        if !canvas.0.is_finite() || !canvas.1.is_finite() || canvas.0 <= 0.0 || canvas.1 <= 0.0 {
+            return Err(HostError::InvalidOptions(format!(
+                "surface size must be positive, got {}×{}",
+                canvas.0, canvas.1
+            )));
+        }
+        self.scroll_impl(viewport, direction, Some(canvas))
+    }
+
+    /// The shared scroll body. `canvas: None` couples the surface to the
+    /// viewport (the six-op `scroll`); `Some` decouples it (mobile zoom).
+    fn scroll_impl(
+        &mut self,
+        viewport: Viewport,
+        direction: Direction,
+        canvas: Option<(f32, f32)>,
+    ) -> Result<(), HostError> {
         self.assert_alive()?;
         if !viewport.x.is_finite() || !viewport.y.is_finite() {
             return Err(HostError::InvalidOptions(format!(
@@ -508,14 +543,19 @@ impl HostDocument {
                 .scheduler
                 .tick(&mut worker)
                 .map_err(|e| HostError::Load(e.to_string()))?;
+            let canvas = canvas.unwrap_or((viewport.w, viewport.h));
             let needs_resize = fields
                 .surface_size
-                .is_none_or(|(w, h)| w != viewport.w || h != viewport.h);
+                .is_none_or(|(w, h)| w != canvas.0 || h != canvas.1);
             if needs_resize {
-                *fields.surface_size = Some((viewport.w, viewport.h));
-                fields
-                    .sink
-                    .resize(viewport.w.max(1.0) as u32, viewport.h.max(1.0) as u32);
+                *fields.surface_size = Some(canvas);
+                // Device pixels (`FrameSink::resize`'s contract): the plan
+                // maps the CSS canvas across the surface at the dpr.
+                let dpr = *fields.dpr;
+                fields.sink.resize(
+                    (canvas.0 * dpr).max(1.0) as u32,
+                    (canvas.1 * dpr).max(1.0) as u32,
+                );
             }
             Ok(())
         })

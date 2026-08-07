@@ -385,9 +385,13 @@ and the lifecycle differ.
   wgpu examples do the same). The bytes are parsed per resume (deterministic and
   validated); parsing is cheap, and the re-upload is bounded and budgeted.
 - **Input**: wheel (mice/trackpads) and touch drag-scroll (content follows the finger:
-  `(prev − cur)/dpr` doc px, unit-tested; only the first touch is tracked); left-drag
-  selects; Esc/back exits. Fling inertia and pinch zoom are recorded roadmap
-  candidates, not deferred scope.
+  `(prev − cur)` doc px, unit-tested); **fling/inertia** on release (release-velocity
+  estimated from the last 120 ms of drag samples, exponential decay per redraw,
+  `gesture::Fling`); **pinch zoom** (two-finger: the viewport shrinks around the pinch
+  midpoint, 0.5×–4× of fit-width, anchored — the surface stays at the window size via
+  `scroll_with_surface`, so the zoom is a crisp GPU remap); left-drag selects;
+  Esc/back exits. All gesture math is pure and headless-tested (`gesture` module);
+  rotation resets the zoom (recorded behavior).
 - **On-device pixel validation (0.1.1)**: the emulator smoke (the demo's
   `scripts/android-emulator-smoke.sh`, KVM + SwiftShader + Xvfb) installs the APK, and
   the app dumps its D31 offscreen capture once to its data dir (pulled via `run-as`

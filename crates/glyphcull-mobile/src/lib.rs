@@ -9,9 +9,12 @@
 //! - `app` — the winit application (`MobileApp`/`MobileDocument`): the
 //!   Android lifecycle (rebuild on `resumed`, drop on `suspended` — the
 //!   native window and its surface die with the activity's pause), input
-//!   wiring (wheel + touch-drag scroll, drag select), and the six operations.
+//!   wiring (wheel + touch drag, fling/inertia, pinch zoom, drag select), and
+//!   the six operations.
 //! - `asset` — the packaged document contract: the `assets/doc.cull` name,
 //!   its validation, and the Android `AssetManager` read.
+//! - `gesture` — the pure gesture math (fling kinematics + pinch zoom),
+//!   fully headless-tested.
 //!
 //! The crate is one binary entry point: `android_main` (Android) loads the
 //! packaged asset and runs the same app [`run_with`] serves on every other
@@ -23,11 +26,16 @@
 
 mod app;
 mod asset;
+mod gesture;
 
 pub use app::{
     direction_for_delta, run_with, scroll_delta_for_touch, MobileApp, MobileDocument, MobileError,
 };
 pub use asset::{validate_asset_name, ASSET_NAME};
+pub use gesture::{
+    pinch_factor, scroll_release_velocity, zoom_of, zoom_viewport, Fling, FLING_DECAY,
+    FLING_MAX_VELOCITY, FLING_SAMPLE_MS, FLING_STOP_EPSILON, MAX_ZOOM, MIN_ZOOM,
+};
 
 /// The Android entry point: android-activity calls `android_main` with the
 /// app handle (winit needs it for the event loop — it has no other way to

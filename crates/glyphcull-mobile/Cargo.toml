@@ -4,7 +4,12 @@ name = "glyphcull-mobile"
 # (Android-only, once per process; pulled via run-as from the debug APK),
 # plus the resumed/resize diagnostics. The APK manifest (demo repo) gained
 # the NoTitleBar.Fullscreen theme and debuggable for the capture pull.
-version = "0.1.1"
+# 0.1.2: the gesture layer — fling/inertia (exponential velocity decay,
+# driven per redraw) and pinch zoom (the viewport shrinks around the pinch
+# midpoint while the surface stays at the window size via host 0.1.4's
+# `scroll_with_surface`); the pure gesture math lives in `gesture`
+# (headless-tested) and the single-finger drag delta is fixed to doc px.
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -26,7 +31,7 @@ workspace = true
 [dependencies]
 glyphcull-core = { version = "0.1.1", path = "../glyphcull-core" }
 glyphcull-desktop = { version = "0.1.3", path = "../glyphcull-desktop" }
-glyphcull-host = { version = "0.1.3", path = "../glyphcull-host" }
+glyphcull-host = { version = "0.1.4", path = "../glyphcull-host" }
 pollster = "0.4"
 # android-native-activity (not game-activity): the pure-Rust backend, so the
 # crate builds without the NDK games SDK; inert on non-Android targets.

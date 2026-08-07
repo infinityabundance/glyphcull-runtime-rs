@@ -51,6 +51,10 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       fixes (GL downlevel limits; `GLYPHCULL_WGPU_BACKEND`) and documented the
       emulator's broken present path as a platform defect. A physical-device visual
       run remains the only unexecuted host check.
+- [x] **4.13 follow-up: the mobile gesture layer** (2026-08-07) — fling/inertia +
+      pinch zoom on `glyphcull-mobile` 0.1.2 (host 0.1.4's `scroll_with_surface`
+      decouples the viewport from the drawing surface — a crisp GPU zoom; the pure
+      `gesture` module is headless-tested; the drag delta is fixed to doc px).
 - [x] **Test pyramid complete**: unit/integration/property/stress/memory/performance layers
       per subsystem (see TESTING.md); rendering validation vs a committed golden image
       (`crates/glyphcull-render/tests/fixtures/golden-document.png`, headless CPU reference

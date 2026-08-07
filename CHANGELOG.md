@@ -4,6 +4,22 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (0.1.4 / 0.1.2 — the mobile gesture layer: fling/inertia + pinch zoom)
+
+- `glyphcull-host` 0.1.4: `HostDocument::scroll_with_surface` — the viewport and the
+  drawing surface decouple (the mobile host's pinch zoom keeps the surface at the
+  window size while the zoomed viewport shrinks — the renderer maps the viewport into
+  the full surface, a crisp GPU zoom). The sink resize now uses **device** pixels
+  (canvas × dpr, the `FrameSink::resize` contract) on every scroll — fixing the
+  latent dpr≠1 path that configured the surface at CSS pixels (smoke-neutral: all
+  validation runs at dpr 1).
+- `glyphcull-mobile` 0.1.2: the gesture layer in a new `gesture` module (pure,
+  headless-tested) — fling/inertia (release-velocity estimation from recent touch
+  samples, exponential velocity decay driven per redraw, `Fling`), pinch zoom
+  (viewport shrink around the pinch midpoint, zoom 0.5×–4× of fit-width, anchored),
+  and the single-finger drag delta fixed to document px (the dpr no longer divides
+  twice).
+
 ### Fixed + Added (0.1.3 / 0.1.1 — the Android emulator's first on-device pixel validation)
 
 - `glyphcull-desktop` 0.1.3: **GL adapters now request `downlevel_webgl2_defaults()`
