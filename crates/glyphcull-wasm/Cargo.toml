@@ -4,7 +4,9 @@ name = "glyphcull-wasm"
 # desktop binding); this crate is now a thin wasm-bindgen layer over it.
 # 0.2.1: cfg(web) gating for the canvas-bound API, cdylib crate type, the
 # optional backend option, and the injected performance.now clock (host 0.1.1).
-version = "0.2.1"
+# 0.2.2: `captureLastFrame` — the async offscreen frame capture diagnostic
+# (D31; map via a promise — the web cannot block on device.poll).
+version = "0.2.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -16,6 +16,13 @@ pub struct WgpuSink {
     renderer: Renderer,
     surface: Option<wgpu::Surface<'static>>,
     format: wgpu::TextureFormat,
+    /// The surface size in device pixels (set by the host's resize calls).
+    size: (u32, u32),
+    /// The last drawn plan, re-rendered offscreen for capture (DESIGN.md D31)
+    /// — rendering is deterministic, so the capture equals the presented
+    /// frame without touching the DOM canvas (which headless Chromium cannot
+    /// read back; D10).
+    last_plan: Option<RenderPlan>,
 }
 
 impl WgpuSink {
@@ -30,6 +37,8 @@ impl WgpuSink {
             renderer,
             surface,
             format,
+            size: (0, 0),
+            last_plan: None,
         }
     }
 
@@ -87,6 +96,10 @@ impl FrameSink for WgpuSink {
         _surface_w: f32,
         _surface_h: f32,
     ) -> Result<(), String> {
+        // Keep the plan for capture (DESIGN.md D31): the capture re-renders
+        // it offscreen, which is byte-deterministic and independent of the
+        // DOM canvas.
+        self.last_plan = Some(plan.clone());
         let Some(surface) = &self.surface else {
             return Err("no surface".to_string());
         };
@@ -98,6 +111,7 @@ impl FrameSink for WgpuSink {
     }
 
     fn resize(&mut self, width: u32, height: u32) {
+        self.size = (width.max(1), height.max(1));
         let Some(surface) = &self.surface else {
             return;
         };
@@ -114,6 +128,27 @@ impl FrameSink for WgpuSink {
                 desired_maximum_frame_latency: 2,
             },
         );
+    }
+
+    fn capture(&mut self) -> Option<Vec<u8>> {
+        // The web cannot block on `device.poll(Wait)`; the binding maps the
+        // readback asynchronously via `capture_readback`.
+        None
+    }
+
+    fn capture_readback(&mut self) -> Option<glyphcull_render::renderer::FrameReadback> {
+        let plan = self.last_plan.as_ref()?;
+        let (width, height) = self.size;
+        if width == 0 || height == 0 {
+            return None;
+        }
+        self.renderer
+            .render_to_readback(plan, width, height)
+            .map_err(|e| {
+                eprintln!("glyphcull-wasm: capture: {e}");
+                e
+            })
+            .ok()
     }
 
     fn destroy(&mut self) {

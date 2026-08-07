@@ -4,6 +4,19 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (0.2.2 — async frame capture on the wasm binding)
+
+- `glyphcull-wasm` 0.2.2: `captureLastFrame()` — the wasm face of the D31 capture
+  diagnostic. The readback map is asynchronous (`map_async` + a JS promise; the web
+  cannot block on `device.poll(Wait)`), so the renderer's readback was split into
+  `render_to_readback` (render + copy, all backends) + the native-only
+  `readback_to_rgba` (sync map) — the binding maps the readback asynchronously.
+  The `WgpuSink` stores the last plan + surface size for the capture. In headless
+  Chromium + SwiftShader the WebGPU readback is platform-blocked (DESIGN.md D10:
+  `present()` poisons `mapAsync`); the WebGL2 backend's canvas is read via
+  `readPixels` instead, which the demo now pixel-validates (all fixtures within
+  tolerance).
+
 ### Fixed (0.1.2 / 0.1.2 / 0.1.1 — desktop visual smoke, 2026-08-07; two renderer defects found by native pixel validation)
 
 - **Glyph sampling phase (D28, corrected)**: wgpu samples at `uv·size − 0.5`; the

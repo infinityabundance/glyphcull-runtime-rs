@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "glyphcull-wasm"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "glyphcull-core",
  "glyphcull-host",

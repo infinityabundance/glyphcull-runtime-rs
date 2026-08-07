@@ -15,7 +15,7 @@
 use js_sys::Reflect;
 use wasm_bindgen::prelude::*;
 #[cfg(web)]
-use wasm_bindgen_futures::future_to_promise;
+use wasm_bindgen_futures::{future_to_promise, JsFuture};
 #[cfg(web)]
 use web_sys::HtmlCanvasElement;
 
@@ -137,6 +137,26 @@ impl GlyphCullDocument {
             Some(host) if !host.destroyed() => host.copy().map_err(js_err),
             _ => Err(js_err(HostError::Destroyed)),
         }
+    }
+
+    /// Capture the last painted frame as tightly packed **premultiplied**
+    /// RGBA8 device pixels (top-left origin) — a host diagnostic for
+    /// validation, not part of the six-operation runtime API. The capture
+    /// re-renders the last plan offscreen and maps the readback
+    /// asynchronously (DESIGN.md D31), so it reads real GPU pixels without the
+    /// DOM canvas — which headless Chromium cannot read back (D10). Resolves
+    /// with a `Uint8Array`; rejects with a `renderer`-kind error when no
+    /// frame has been painted or the capture fails.
+    #[cfg(web)]
+    #[wasm_bindgen(js_name = captureLastFrame)]
+    pub fn capture_last_frame(&mut self) -> Result<js_sys::Promise, JsValue> {
+        let readback = self
+            .require_alive()?
+            .capture_last_frame_readback()
+            .ok_or_else(|| js_err(HostError::Renderer("frame capture unavailable".to_string())))?;
+        Ok(future_to_promise(async move {
+            map_readback_async(readback).await
+        }))
     }
 
     /// Release every resource; idempotent. All other calls then reject.
@@ -345,6 +365,58 @@ fn parse_options(options: &JsValue) -> Result<HostOptions, JsValue> {
     };
     validate_options(&options).map_err(js_err)?;
     Ok(options)
+}
+
+/// Map a frame readback asynchronously (DESIGN.md D31): `map_async` and
+/// resolve a JS promise from the callback — the web cannot block on
+/// `device.poll(Wait)`, and the callback is driven by the browser's event
+/// loop once the submitted copy completes.
+/// Map a frame readback asynchronously (DESIGN.md D31): register the map with
+/// a callback that resolves a JS promise, then await it — the web cannot
+/// block on `device.poll(Wait)`, and the callback is driven by the browser's
+/// event loop once the submitted copy completes. The buffer stays owned by the
+/// async block (the callback captures only the resolve/reject functions), so
+/// there is no borrow/move conflict.
+#[cfg(web)]
+async fn map_readback_async(
+    readback: glyphcull_render::renderer::FrameReadback,
+) -> Result<JsValue, JsValue> {
+    let glyphcull_render::renderer::FrameReadback {
+        buffer,
+        bytes_per_row,
+        width,
+        height,
+        bgra,
+    } = readback;
+    // A promise the map callback settles; `Promise::new` runs its callback
+    // synchronously, so `map_async` is registered before the await.
+    let mapped = js_sys::Promise::new(&mut |resolve, reject| {
+        let view = buffer.slice(..);
+        view.map_async(wgpu::MapMode::Read, move |result| match result {
+            Ok(()) => {
+                let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::UNDEFINED);
+            }
+            Err(error) => {
+                // Reject with a plain string: the JsFuture error is the same
+                // string (an Error object would not round-trip as_string).
+                let _ = reject.call1(
+                    &JsValue::UNDEFINED,
+                    &JsValue::from_str(&format!("readback map: {error}")),
+                );
+            }
+        });
+    });
+    JsFuture::from(mapped).await.map_err(|e| {
+        let message = e.as_string().unwrap_or_else(|| "unknown error".to_string());
+        js_err(HostError::Renderer(format!("capture: {message}")))
+    })?;
+    // The map completed: read the buffer (now owned again by this block).
+    let view = buffer.slice(..);
+    let raw = view.get_mapped_range();
+    let rgba = glyphcull_render::renderer::compact_rgba8(&raw, bytes_per_row, width, height, bgra);
+    drop(raw);
+    buffer.unmap();
+    Ok(JsValue::from(js_sys::Uint8Array::from(&rgba[..])))
 }
 
 /// A JS `Error` with a `.kind` property (mirrors the JS typed errors).

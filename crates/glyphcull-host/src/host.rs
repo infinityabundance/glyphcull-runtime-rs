@@ -196,6 +196,13 @@ pub trait FrameSink {
     fn capture(&mut self) -> Option<Vec<u8>> {
         None
     }
+    /// Render the last presented frame offscreen and return its **un-mapped**
+    /// readback (DESIGN.md D31). Default: unsupported. The wasm binding maps
+    /// it asynchronously (wasm cannot block on `device.poll(Wait)`), while
+    /// native hosts use the synchronous [`Self::capture`].
+    fn capture_readback(&mut self) -> Option<glyphcull_render::renderer::FrameReadback> {
+        None
+    }
     /// Release GPU resources.
     fn destroy(&mut self);
 }
@@ -645,6 +652,16 @@ impl HostDocument {
     /// re-renders the last plan offscreen (DESIGN.md D31).
     pub fn capture_last_frame(&mut self) -> Option<Vec<u8>> {
         self.with_mut(|fields| fields.sink.capture())
+    }
+
+    /// Capture the last presented frame as an **un-mapped** readback — the
+    /// wasm binding maps it asynchronously (wasm cannot block on
+    /// `device.poll(Wait)`); native hosts use [`Self::capture_last_frame`]
+    /// (DESIGN.md D31).
+    pub fn capture_last_frame_readback(
+        &mut self,
+    ) -> Option<glyphcull_render::renderer::FrameReadback> {
+        self.with_mut(|fields| fields.sink.capture_readback())
     }
 
     /// Release every resource; idempotent. All other calls then reject.

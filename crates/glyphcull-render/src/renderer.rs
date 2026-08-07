@@ -18,7 +18,10 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
+// The synchronous readback map (native only): wasm maps asynchronously.
+#[cfg(not(target_family = "wasm"))]
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_family = "wasm"))]
 use std::time::{Duration, Instant};
 
 use crate::plan::{PlanOp, RenderPlan};
@@ -382,6 +385,24 @@ impl fmt::Display for RenderError {
 }
 
 impl std::error::Error for RenderError {}
+
+/// An **un-mapped** offscreen frame readback (DESIGN.md D31): the renderer
+/// renders the plan into an offscreen texture and copies it into `buffer`;
+/// hosts map it synchronously (native, via `Renderer::readback_to_rgba`) or
+/// asynchronously (wasm, where `device.poll(Wait)` is unsupported).
+#[derive(Debug)]
+pub struct FrameReadback {
+    /// The mapped-on-demand buffer (COPY_DST | MAP_READ).
+    pub buffer: wgpu::Buffer,
+    /// The padded row byte width (wgpu's copy alignment).
+    pub bytes_per_row: u32,
+    /// The frame width in device pixels.
+    pub width: u32,
+    /// The frame height in device pixels.
+    pub height: u32,
+    /// Whether the source format is BGRA (channels must be swapped to RGBA).
+    pub bgra: bool,
+}
 
 /// One managed texture (page or image) with its view, sampler, and bind group.
 struct TextureEntry {
@@ -1012,19 +1033,19 @@ impl Renderer {
         })
     }
 
-    /// Render a plan into an offscreen texture and read it back as tightly
-    /// packed **premultiplied** RGBA8 (device pixels, top-left origin): the
-    /// offscreen target uses the pipeline's non-sRGB format and the same
-    /// clear + premultiplied blend as the surface, so the bytes equal what the
-    /// surface presents (DESIGN.md D31). Row padding is removed and BGRA
-    /// targets are swapped to RGBA. Hosts use this for headless frame capture
-    /// (the desktop `--screenshot` mode) and for native pixel validation.
-    pub fn render_to_rgba(
+    /// Render a plan into an offscreen texture and copy it into an **un-mapped**
+    /// readback buffer (DESIGN.md D31): the offscreen target uses the
+    /// pipeline's non-sRGB format and the same clear + premultiplied blend as
+    /// the surface, so the bytes equal what the surface presents. Works on
+    /// every backend — including wasm, where `device.poll(Wait)` is
+    /// unsupported, so hosts map the buffer instead (synchronously on native
+    /// via [`Self::readback_to_rgba`], asynchronously on wasm).
+    pub fn render_to_readback(
         &mut self,
         plan: &RenderPlan,
         width: u32,
         height: u32,
-    ) -> Result<Vec<u8>, RenderError> {
+    ) -> Result<FrameReadback, RenderError> {
         let width = width.max(1);
         let height = height.max(1);
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -1045,7 +1066,7 @@ impl Renderer {
         self.draw(plan, &view);
 
         let bytes_per_row = align_row_bytes(width);
-        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("glyphcull-capture-readback"),
             size: u64::from(bytes_per_row) * u64::from(height),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -1064,7 +1085,7 @@ impl Renderer {
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyBufferInfo {
-                buffer: &readback,
+                buffer: &buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(bytes_per_row),
@@ -1078,12 +1099,31 @@ impl Renderer {
             },
         );
         self.queue.submit([encoder.finish()]);
-        self.poll(true)
-            .map_err(|e| RenderError::Readback(e.to_string()))?;
+        Ok(FrameReadback {
+            buffer,
+            bytes_per_row,
+            width,
+            height,
+            bgra: self.target_format == wgpu::TextureFormat::Bgra8Unorm,
+        })
+    }
 
+    /// Synchronously map a readback into tightly packed **premultiplied**
+    /// RGBA8 (device pixels, top-left origin; row padding removed, BGRA
+    /// swapped). Native only: `PollType::Wait` is unsupported on wasm, where
+    /// the binding maps the buffer asynchronously instead.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn readback_to_rgba(&self, readback: FrameReadback) -> Result<Vec<u8>, RenderError> {
+        let FrameReadback {
+            buffer,
+            bytes_per_row,
+            width,
+            height,
+            bgra,
+        } = readback;
         // Map synchronously: `map_async` then keep polling until the callback
         // fires (the callback is driven by the device's poll loop).
-        let slice = readback.slice(..);
+        let slice = buffer.slice(..);
         let mapped = AtomicBool::new(false);
         let notifier = std::sync::Arc::new(mapped);
         let flag = std::sync::Arc::clone(&notifier);
@@ -1101,16 +1141,26 @@ impl Renderer {
             }
         }
         let raw = slice.get_mapped_range();
-        let rgba = compact_rgba8(
-            &raw,
-            bytes_per_row,
-            width,
-            height,
-            self.target_format == wgpu::TextureFormat::Bgra8Unorm,
-        );
+        let rgba = compact_rgba8(&raw, bytes_per_row, width, height, bgra);
         drop(raw);
-        readback.unmap();
+        buffer.unmap();
         Ok(rgba)
+    }
+
+    /// Render a plan into an offscreen texture and read it back as tightly
+    /// packed **premultiplied** RGBA8 (device pixels, top-left origin) — the
+    /// native synchronous convenience over [`Self::render_to_readback`] +
+    /// [`Self::readback_to_rgba`] (hosts use this for the desktop
+    /// `--screenshot` mode; wasm maps asynchronously).
+    #[cfg(not(target_family = "wasm"))]
+    pub fn render_to_rgba(
+        &mut self,
+        plan: &RenderPlan,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>, RenderError> {
+        let readback = self.render_to_readback(plan, width, height)?;
+        self.readback_to_rgba(readback)
     }
 
     /// Release every GPU texture (the JS `reuploadAll` counterpart after
