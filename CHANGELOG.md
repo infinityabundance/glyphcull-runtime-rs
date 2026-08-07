@@ -4,6 +4,27 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Fixed (patch releases 0.1.1 / 0.2.1 — crates.io parity with HEAD)
+
+- `glyphcull-core` 0.1.1: the clock generics accept `?Sized` clocks
+  (`LifecycleManager<'_, dyn Clock>` / `MaterializationScheduler<'_, dyn Clock>`),
+  enabling the host's injectable-clock API.
+- `glyphcull-render` 0.1.1: image uploads are premultiplied (transparent texels
+  with non-zero RGB must never read as ink in the MSDF program) — matches the JS
+  WebGL `UNPACK_PREMULTIPLY_ALPHA_WEBGL` convention so the two runtimes render
+  images identically; `chunk.get(0)` → `chunk.first()` (clippy `get_first`).
+- `glyphcull-host` 0.1.1: `load_with_clock` — the default `load` keeps the real
+  clock; hosts inject a platform clock (`performance.now` on wasm, where
+  `SystemTime::now` panics).
+- `glyphcull-wasm` 0.2.1: the canvas-bound `load`/`load_inner`/`parse_options`
+  and the wasm-only clock are behind the `web` cfg (set on wasm32 by the build
+  script; declared via check-cfg), so native builds — test, clippy, doc —
+  compile without a DOM canvas; the binding ships as a cdylib; the optional
+  `backend` option (`webgpu`/`webgl`/`auto`); wgpu's `webgl` feature for the
+  WebGL2 fallback with downlevel limits; the injected `performance.now` clock.
+  The crate is warning-free on both native and wasm32 targets.
+- `glyphcull-desktop` remains 0.1.0 (unchanged since its publish).
+
 ### Added (Phase 4.12 — Mobile targets + final test-pyramid layers)
 
 - **Rendering validation vs a golden image** (`glyphcull-render/tests/golden_image.rs`):

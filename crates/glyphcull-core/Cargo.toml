@@ -1,6 +1,8 @@
 [package]
 name = "glyphcull-core"
-version.workspace = true
+# 0.1.1: clock generics accept ?Sized clocks (`&dyn Clock`), enabling the
+# host's injectable-clock API for wasm (which has no std time).
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

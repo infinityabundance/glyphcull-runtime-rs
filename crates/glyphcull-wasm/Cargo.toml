@@ -2,7 +2,9 @@
 name = "glyphcull-wasm"
 # 0.2.0: the platform-agnostic host moved to glyphcull-host (shared with the
 # desktop binding); this crate is now a thin wasm-bindgen layer over it.
-version = "0.2.0"
+# 0.2.1: cfg(web) gating for the canvas-bound API, cdylib crate type, the
+# optional backend option, and the injected performance.now clock (host 0.1.1).
+version = "0.2.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -20,9 +22,9 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
-glyphcull-host = { version = "0.1.0", path = "../glyphcull-host" }
-glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
+glyphcull-core = { version = "0.1.1", path = "../glyphcull-core" }
+glyphcull-host = { version = "0.1.1", path = "../glyphcull-host" }
+glyphcull-render = { version = "0.1.1", path = "../glyphcull-render" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

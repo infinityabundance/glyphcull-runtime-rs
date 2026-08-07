@@ -1,6 +1,8 @@
 [package]
 name = "glyphcull-host"
-version.workspace = true
+# 0.1.1: injectable clock (`load_with_clock`) — the wasm binding injects a
+# performance.now clock (SystemTime panics on wasm32-unknown-unknown).
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -14,6 +16,6 @@ categories = ["rendering", "graphics", "wasm"]
 workspace = true
 
 [dependencies]
-glyphcull-core = { version = "0.1.0", path = "../glyphcull-core" }
+glyphcull-core = { version = "0.1.1", path = "../glyphcull-core" }
 glyphcull-render = { version = "0.1.0", path = "../glyphcull-render" }
 ouroboros = "0.18"
