@@ -116,6 +116,8 @@ pub struct SectionEntry {
     pub kind: u32,
     /// The compression code.
     pub compression: Compression,
+    /// The flags byte: bit 0 is `critical`, meaningful only for unknown kinds.
+    pub flags: u8,
     /// Absolute byte offset of the stored payload.
     pub offset: u64,
     /// Stored byte length.
@@ -338,6 +340,10 @@ pub fn parse(bytes: &[u8]) -> Result<Package> {
     let mut unknown: Vec<SectionPayload> = Vec::new();
     let mut seen = HashSet::new();
     let mut total_decoded: u64 = 0;
+    // Canonical-order enforcement for the known sections (SPEC.md §1.6): their
+    // kinds must be strictly increasing in file order; unknown kinds may appear
+    // anywhere.
+    let mut last_known_kind: Option<u32> = None;
 
     for entry in &entries {
         let payload = decode_payload(bytes, entry)?;
@@ -370,10 +376,43 @@ pub fn parse(bytes: &[u8]) -> Result<Package> {
                         format!("duplicate section kind {kind}"),
                     ));
                 }
+                if let Some(previous) = last_known_kind {
+                    if entry.kind <= previous {
+                        return Err(Error::for_section(
+                            ErrorKind::InvalidSectionOrder,
+                            entry.index,
+                            format!(
+                                "kind {} appears after {previous} (canonical order violated)",
+                                entry.kind
+                            ),
+                        ));
+                    }
+                }
+                last_known_kind = Some(entry.kind);
                 sections.push(item);
             }
-            None => unknown.push(item),
+            None => {
+                // Unknown kind: noncritical sections (flags bit 0 clear) are
+                // skipped for forward compatibility; a critical unknown section
+                // is rejected (SPEC.md §1.2, §4).
+                if entry.flags & 0x01 != 0 {
+                    return Err(Error::for_section(
+                        ErrorKind::UnknownCriticalSection,
+                        entry.index,
+                        format!("unknown kind {} marked critical", entry.kind),
+                    ));
+                }
+                unknown.push(item);
+            }
         }
+    }
+
+    // INFO is the required section: every conforming v1 package carries it.
+    if !seen.contains(&SectionKind::Info) {
+        return Err(Error::new(
+            ErrorKind::MissingRequiredSection,
+            "required INFO section is absent",
+        ));
     }
 
     let package = Package::new(
@@ -564,7 +603,12 @@ fn parse_entry(bytes: &[u8], index: usize, start: usize) -> Result<SectionEntry>
             ));
         }
     };
-    if entry_flags != 0 || reserved != 0 {
+    // The flags byte: bit 0 is `critical`, meaningful only for unknown section
+    // kinds (SPEC.md §1.2 — a critical unknown section MUST be rejected; a
+    // noncritical one is skipped). Reserved bits 1..7 must be zero, and known
+    // kinds must carry no flags at all.
+    let known_kind = SectionKind::from_code(kind).is_some();
+    if entry_flags & 0xFE != 0 || reserved != 0 || (known_kind && entry_flags != 0) {
         return Err(Error::for_section(
             ErrorKind::InvalidFlags,
             index,
@@ -589,6 +633,7 @@ fn parse_entry(bytes: &[u8], index: usize, start: usize) -> Result<SectionEntry>
         index,
         kind,
         compression,
+        flags: entry_flags,
         offset,
         stored_len,
         decoded_len,

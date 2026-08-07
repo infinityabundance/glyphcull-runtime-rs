@@ -148,7 +148,9 @@ fn classifies_chunk_kinds_per_the_spec() {
 
 #[test]
 fn rejects_a_package_without_info_or_chnk() {
-    // INFO-only package: missing CHNK.
+    // INFO-only package: missing CHNK. The container parses (INFO is the only
+    // container-required section), the document build rejects the missing
+    // chunk graph.
     let bytes = common::build_package(&[common::TestSection {
         kind: 1,
         compression: 1,
@@ -158,15 +160,18 @@ fn rejects_a_package_without_info_or_chnk() {
     let err = build_document(&pkg).expect_err("missing CHNK");
     assert_eq!(err.kind, DocumentErrorKind::MissingSection);
 
-    // CHNK-only package: missing INFO.
+    // CHNK-only package: missing INFO is rejected by the container reader
+    // itself (INFO is the required section; SPEC.md §1.6).
     let bytes = common::build_package(&[common::TestSection {
         kind: 2,
         compression: 1,
         payload: common::empty_chnk_payload(),
     }]);
-    let pkg = parsed(&bytes);
-    let err = build_document(&pkg).expect_err("missing INFO");
-    assert_eq!(err.kind, DocumentErrorKind::MissingSection);
+    let err = glyphcull_core::reader::parse(&bytes).expect_err("missing INFO at the container");
+    assert_eq!(
+        err.kind,
+        glyphcull_core::error::ErrorKind::MissingRequiredSection
+    );
 }
 
 #[test]

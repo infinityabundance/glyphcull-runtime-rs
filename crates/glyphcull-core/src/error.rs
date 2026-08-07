@@ -29,6 +29,12 @@ pub enum ErrorKind {
     OutOfBounds,
     /// Two sections share a kind.
     DuplicateSection,
+    /// The known sections are not in canonical relative order.
+    InvalidSectionOrder,
+    /// An unknown section kind carries the critical flag.
+    UnknownCriticalSection,
+    /// A required section (INFO) is absent.
+    MissingRequiredSection,
     /// The compression code is not in `{0, 1}`.
     UnsupportedCompression,
     /// Reserved flags or reserved bits are set.
