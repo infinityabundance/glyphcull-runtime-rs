@@ -4,6 +4,21 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (0.2.3 — the surface-free WebGPU load: pixel-exact browser validation)
+
+- `glyphcull-wasm` 0.2.3: `loadHeadless(bytes, options)` — the same document
+  host over a wgpu WebGPU device with **no canvas surface** (a host diagnostic,
+  not one of the six operations). The device is requested with
+  `compatible_surface: None`, so it is never `present()`-ed and
+  `GPUBuffer.mapAsync` works even in the headless SwiftShader builds where a
+  surface-configured device rejects maps (DESIGN.md D10). Rendering happens
+  offscreen: `paint` keeps the plan and `captureLastFrame` re-renders it and
+  maps the readback — byte-deterministic, pixel-exact GPU output without the
+  DOM canvas. `WgpuSink::draw` with no surface now stores the plan and returns
+  `Ok(())` (previously an error) — the surface-less sink is a first-class
+  mode. The canvas-bound `load` is unchanged and remains `#[cfg(web)]`-gated;
+  `loadHeadless` shares the same options object.
+
 ### Added (0.1.0 — the iOS host crate, Phase 4.13 follow-up)
 
 - `glyphcull-ios` 0.1.0: the iOS face of the six-operation API — the **same

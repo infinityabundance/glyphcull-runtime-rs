@@ -101,7 +101,13 @@ impl FrameSink for WgpuSink {
         // DOM canvas.
         self.last_plan = Some(plan.clone());
         let Some(surface) = &self.surface else {
-            return Err("no surface".to_string());
+            // Headless mode (the `loadHeadless` binding path): there is no
+            // canvas to present — the frame exists only as the stored plan,
+            // which the offscreen capture reads. Never touching a surface
+            // also keeps the device surface-free, so `mapAsync` works even
+            // on the SwiftShader builds where a presented device rejects it
+            // (DESIGN.md D10).
+            return Ok(());
         };
         let frame = surface.get_current_texture().map_err(|e| e.to_string())?;
         let view = frame.texture.create_view(&Default::default());

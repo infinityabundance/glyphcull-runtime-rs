@@ -6,7 +6,11 @@ name = "glyphcull-wasm"
 # optional backend option, and the injected performance.now clock (host 0.1.1).
 # 0.2.2: `captureLastFrame` — the async offscreen frame capture diagnostic
 # (D31; map via a promise — the web cannot block on device.poll).
-version = "0.2.2"
+# 0.2.3: `loadHeadless` — the surface-free WebGPU load (no canvas): a device with
+# no compatible surface, so `mapAsync` works even on SwiftShader (DESIGN.md D10);
+# `WgpuSink::draw` with no surface keeps the plan for the offscreen capture
+# instead of erroring. Additive; the canvas-bound `load` is unchanged.
+version = "0.2.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -221,6 +221,72 @@ pub fn load(
     }))
 }
 
+/// Load a `.cull` package **headlessly**: the same document host over a wgpu
+/// WebGPU device with **no canvas surface** — a host diagnostic for the
+/// browser, not part of the six-operation runtime API. Rendering happens
+/// offscreen (`paint` keeps the plan; `captureLastFrame` re-renders it and
+/// maps the readback), so the device is never `present()`-ed — which is what
+/// allows pixel-exact WebGPU validation in the browser: SwiftShader's
+/// `mapAsync` rejects a surface-configured, presented device (DESIGN.md D10),
+/// while a surface-free device maps fine (the readback probe proves it). The
+/// options object is the same as `load`'s.
+#[cfg(web)]
+#[wasm_bindgen(js_name = loadHeadless)]
+pub fn load_headless(bytes: &[u8], options: JsValue) -> Result<js_sys::Promise, JsValue> {
+    let options = parse_options(&options)?;
+    let bytes = bytes.to_vec();
+    Ok(future_to_promise(async move {
+        load_headless_inner(&bytes, options).await
+    }))
+}
+
+/// The headless load body: parse + validate the package, request a
+/// surface-free WebGPU adapter/device, and build the host over a surface-less
+/// [`WgpuSink`].
+#[cfg(web)]
+async fn load_headless_inner(bytes: &[u8], options: HostOptions) -> Result<JsValue, JsValue> {
+    let pkg = parse(bytes).map_err(|e| js_err(HostError::Load(e.to_string())))?;
+    {
+        let doc = build_document(&pkg).map_err(|e| js_err(HostError::Load(e.to_string())))?;
+        let _ = doc.all_ids().len();
+    }
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::BROWSER_WEBGPU,
+        ..Default::default()
+    });
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            force_fallback_adapter: false,
+            compatible_surface: None,
+        })
+        .await
+        .map_err(|e| js_err(HostError::Renderer(format!("renderer-unavailable: {e}"))))?;
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("glyphcull-wasm-headless"),
+            ..Default::default()
+        })
+        .await
+        .map_err(|e| js_err(HostError::Renderer(e.to_string())))?;
+    // The offscreen render target format (the surface-free sink never
+    // configures a swapchain; the capture re-renders to this format).
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let sink = WgpuSink::new(
+        glyphcull_render::renderer::Renderer::from_device(
+            device,
+            queue,
+            format,
+            glyphcull_render::renderer::DEFAULT_TEXTURE_BUDGET,
+        ),
+        None,
+        format,
+    );
+    let host =
+        HostDocument::load_with_clock(pkg, Box::new(sink), options, &WASM_CLOCK).map_err(js_err)?;
+    Ok(JsValue::from(GlyphCullDocument { host: Some(host) }))
+}
+
 /// Read the optional `backend` option (default `auto`).
 #[cfg(web)]
 fn parse_backend(options: &JsValue) -> Result<LoadBackend, JsValue> {
