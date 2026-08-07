@@ -1,8 +1,8 @@
 [package]
 name = "glyphcull-render"
-# 0.1.2: glyph half-texel sampling shift (D28 corrected) + the white texture
-# texel upload (fills/rulers were transparent); adds `render_to_rgba` capture.
-version = "0.1.2"
+# 0.1.3: readback split for wasm — `FrameReadback` + `render_to_readback`
+# (all backends) and the native-only `readback_to_rgba`/`render_to_rgba`.
+version = "0.1.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

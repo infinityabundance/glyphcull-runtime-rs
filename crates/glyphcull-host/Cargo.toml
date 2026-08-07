@@ -1,8 +1,8 @@
 [package]
 name = "glyphcull-host"
-# 0.1.2: `FrameSink::capture` (default None) + `capture_last_frame` — the
-# headless-capture seam behind the desktop `--screenshot` mode (D31).
-version = "0.1.2"
+# 0.1.3: `FrameSink::capture_readback` + `capture_last_frame_readback` — the
+# un-mapped readback seam the wasm binding maps asynchronously (D31).
+version = "0.1.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
