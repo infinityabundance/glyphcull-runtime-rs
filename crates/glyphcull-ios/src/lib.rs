@@ -11,17 +11,19 @@
 //! - The app: `glyphcull-mobile`'s `MobileApp`/`MobileDocument`/`run_with`
 //!   (winit's `EventLoop::run_app` drives the whole UIKit app — winit's iOS
 //!   backend calls `UIApplicationMain`).
-//! - The asset read: the packaged document is a **bundle resource** — the
-//!   Xcode shell embeds `doc.cull` with "Copy Bundle Resources", and this
-//!   crate reads it from the executable's directory (the `.app` root), a
-//!   documented convention (no FFI: `std::env::current_exe` only).
-//! - The entry: the Xcode shell's `main` calls [`run_with`] (there is no
-//!   `#[no_mangle]` shim here — iOS apps start from `UIApplicationMain`,
-//!   which winit invokes).
+//! - The asset read: the packaged document is a **bundle resource** — the app
+//!   bundle pipeline embeds `doc.cull` at the bundle root, and this crate reads
+//!   it from the executable's directory (the `.app` root), a documented
+//!   convention (no FFI: `std::env::current_exe` only).
+//! - The entry: the app bundle's binary is the crate's `main` (`src/main.rs`),
+//!   which calls [`run_with`] — there is no `#[no_mangle]` shim or Objective-C
+//!   shell, because iOS apps start from `UIApplicationMain`, which winit
+//!   invokes from `run_with`.
 //!
 //! CI type-checks this crate for `aarch64-apple-ios`, `aarch64-apple-ios-sim`,
-//! and `x86_64-apple-ios` (a full link + app bundle needs Xcode — recorded, in
-//! the demo repo's roadmap, with the docker-osx build pipeline).
+//! and `x86_64-apple-ios`, and the `ios-ipa.yml` workflow links + bundles the
+//! real `.ipa` on a macOS runner (Xcode's iPhoneOS SDK):
+//! `crates/glyphcull-ios/scripts/build-ipa.sh`.
 
 use std::path::PathBuf;
 

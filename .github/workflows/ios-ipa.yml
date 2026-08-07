@@ -1,0 +1,37 @@
+name: iOS app bundle (.ipa)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "crates/glyphcull-ios/**"
+      - "crates/glyphcull-mobile/**"
+      - "crates/glyphcull-desktop/**"
+      - "crates/glyphcull-host/**"
+      - ".github/workflows/ios-ipa.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  ipa:
+    name: Build the GlyphCull .ipa (real Xcode, ad-hoc signed)
+    # macOS runners ship Xcode with the iPhoneOS SDK — the app-bundle step of
+    # the iOS pipeline (the docker-osx recipe's purpose, now CI-native).
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and assemble the .ipa
+        run: ./crates/glyphcull-ios/scripts/build-ipa.sh
+      - name: Upload the .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: glyphcull-ios-ipa
+          path: crates/glyphcull-ios/dist/GlyphCull-*.ipa
+          if-no-files-found: error
