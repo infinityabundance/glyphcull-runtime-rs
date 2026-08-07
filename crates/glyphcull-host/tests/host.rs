@@ -229,9 +229,10 @@ fn assert_rejects(options: HostOptions, what: &str) {
 fn load_uploads_every_atlas_page_and_no_images() {
     let (_host, sink) = host_with_sink();
     let log = sink.log.borrow();
-    // Golden diagnostics: three atlases with 2+1+1 pages, zero images. Load
+    // Golden diagnostics: three atlases with 1+1+1 pages (the corrected MSDF
+    // atlas fits font 0 on one page), zero images. Load
     // also runs the initial scroll, which resizes the surface once.
-    assert_eq!(log.atlas_uploads, 4);
+    assert_eq!(log.atlas_uploads, 3);
     assert_eq!(log.image_uploads, 0);
     assert_eq!(log.resizes, vec![(800, 600)]);
     assert_eq!(log.draws, 0);

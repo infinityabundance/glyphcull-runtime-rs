@@ -280,7 +280,7 @@ pub struct GoldenExpected {
 /// The pinned golden diagnostics (see `test/fixtures/README.md` for
 /// provenance; `scripts/refresh-fixtures.sh` refreshes the bytes).
 pub const GOLDEN: GoldenExpected = GoldenExpected {
-    document_id: "928da088ece3776622d6f104756a5e35",
+    document_id: "19aa2542367bb9a3bba587bc3038805b",
     source_digest: "47869ba2d830d7e8599b594a98b1e446f79f85a474f8760f22eb99ba0afc70f9",
     generator: "glyphcull-compiler",
     chunk_count: 22,
@@ -297,7 +297,7 @@ pub const GOLDEN: GoldenExpected = GoldenExpected {
             glyphs: 22,
             kerning: 12,
             page_width: 256,
-            pages: 2,
+            pages: 1,
         },
         GoldenAtlas {
             font_id: 1,
