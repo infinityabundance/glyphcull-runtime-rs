@@ -10,6 +10,12 @@ authors.workspace = true
 repository.workspace = true
 description = "GlyphCull wasm host: wasm-bindgen bindings for exactly load/scroll/paint/select/copy/destroy over glyphcull-host + glyphcull-render."
 
+# The wasm binding is consumed as a wasm-bindgen cdylib (the demo and other
+# hosts run wasm-bindgen-cli over it); the rlib keeps native builds/tests
+# working inside the workspace.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [lints]
 workspace = true
 
