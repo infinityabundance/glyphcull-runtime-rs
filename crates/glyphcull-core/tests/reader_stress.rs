@@ -15,10 +15,16 @@ use glyphcull_core::reader::{parse, SectionKind};
 fn a_sixty_four_section_container_parses() {
     // The v1 cap is 64 sections (SPEC.md §1.3); every section here is a
     // distinct kind-addressable payload so the duplicate check never fires.
-    let mut sections = Vec::new();
-    for i in 0..MAX_SECTION_COUNT {
-        // Kinds 1..7 are known; reserve kinds (e.g. 100 + i) are addressable.
-        let kind: u32 = 100 + i as u32;
+    // INFO (kind 1) is container-required since the v1 compatibility rules
+    // (SPEC.md §1.6 rule 9); the remaining 63 slots are reserved kinds.
+    let mut sections = vec![common::TestSection {
+        kind: SectionKind::Info as u32,
+        compression: 1,
+        payload: common::info_payload(),
+    }];
+    for i in 0..(MAX_SECTION_COUNT - 1) {
+        // Kinds 1..7 are known; reserve kinds (e.g. 101 + i) are addressable.
+        let kind: u32 = 101 + i as u32;
         let payload = format!("section {i}: {}", "x".repeat(128)).into_bytes();
         sections.push(common::TestSection {
             kind,
@@ -28,9 +34,10 @@ fn a_sixty_four_section_container_parses() {
     }
     let bytes = common::build_package(&sections);
     let pkg = parse(&bytes).expect("max-count package parses");
-    assert_eq!(pkg.unknown.len(), MAX_SECTION_COUNT as usize);
+    assert_eq!(pkg.unknown.len(), (MAX_SECTION_COUNT - 1) as usize);
     assert_eq!(pkg.entries.len(), MAX_SECTION_COUNT as usize);
-    assert!(pkg.sections.is_empty());
+    assert_eq!(pkg.sections.len(), 1); // INFO
+    assert!(pkg.info().expect("info decodes").is_some());
 }
 
 #[test]
@@ -43,6 +50,11 @@ fn a_total_decoded_cap_claim_is_rejected_by_the_bounded_path() {
     // near the per-section cap (SPEC.md §1.3).
     let tiny = b"tiny payload".to_vec();
     let sections = [
+        common::TestSection {
+            kind: SectionKind::Info as u32,
+            compression: 1,
+            payload: common::info_payload(),
+        },
         common::TestSection {
             kind: 101,
             compression: 1,
@@ -57,7 +69,7 @@ fn a_total_decoded_cap_claim_is_rejected_by_the_bounded_path() {
     // Patch the table's decoded_len fields to just under the per-section cap.
     let mut bytes = common::build_package(&sections);
     let claim = (MAX_TOTAL_DECODED / 2) as u32;
-    for i in 0..2 {
+    for i in 1..3 {
         let decoded_len_offset = common::HEADER_LEN + i * common::ENTRY_LEN + 24;
         let slice = bytes
             .get_mut(decoded_len_offset..decoded_len_offset + 4)

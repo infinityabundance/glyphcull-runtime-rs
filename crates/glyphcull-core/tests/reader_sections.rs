@@ -6,6 +6,12 @@
 //! paths are covered here with hand-built payloads, and each decoder's
 //! rejection branches are pinned to the same typed errors the JS reader
 //! produces.
+//!
+//! The synthetic packages below are valid v1 containers: since the v1
+//! compatibility rules (SPEC.md §1.6 rule 9) made INFO the container-required
+//! section, every hand-built package carries a minimal INFO section first
+//! (canonical order, §1.6 rule 8) — the packages exercise the section
+//! decoders, not the container's required-section check.
 
 #![allow(missing_docs)]
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
@@ -19,12 +25,22 @@ use glyphcull_core::reader::image::ImageFormat;
 use glyphcull_core::reader::style::{PropertyTag, PropertyValue};
 use glyphcull_core::reader::{parse, SectionKind};
 
+/// Assemble a valid v1 container: the required INFO section (kind 1, the
+/// container-required section per SPEC.md §1.6 rule 9) followed by the section
+/// under test — canonical order, since every tested kind is > 1.
 fn package(kind: SectionKind, payload: Vec<u8>) -> Vec<u8> {
-    common::build_package(&[common::TestSection {
-        kind: kind as u32,
-        compression: 0,
-        payload,
-    }])
+    common::build_package(&[
+        common::TestSection {
+            kind: SectionKind::Info as u32,
+            compression: 0,
+            payload: common::info_payload(),
+        },
+        common::TestSection {
+            kind: kind as u32,
+            compression: 0,
+            payload,
+        },
+    ])
 }
 
 // ---------------------------------------------------------------------------
