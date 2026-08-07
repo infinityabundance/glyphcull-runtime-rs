@@ -267,7 +267,11 @@ quads (mirrors the JS `src/render/drawlist.ts`).
   `load/scroll/paint/select/copy/destroy`; `load(bytes, canvas, options)` takes the canvas
   by value so the wgpu surface is `'static` (DESIGN.md D29), and the canvas-dependent path
   is `#[cfg(web)]`. Since 0.2.0 the runtime logic lives in `glyphcull-host`; this crate is
-  the thin wasm-bindgen layer (the `WgpuSink` + the JS handle).
+  the thin wasm-bindgen layer (the `WgpuSink` + the JS handle). Since 0.2.3
+  `loadHeadless(bytes, options)` loads the same host over a **surface-free** WebGPU
+  device — no canvas, never presented — so `captureLastFrame`'s readback map works even
+  in SwiftShader (D10) and the browser harness validates Rust WebGPU pixel-exactly
+  (the demo's `docs/browser-webgpu.md`).
 - **desktop** (`glyphcull-desktop`) — **delivered (4.11)**. The winit host: a window that
   loads a `.cull` package over `glyphcull-host` + a wgpu surface (`Surface<'static>` via
   the Arc-backed window handle, DESIGN.md D30). Input wiring: wheel → scroll, drag →

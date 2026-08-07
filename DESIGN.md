@@ -287,6 +287,13 @@ the JS runtime are marked (mirrors JS Dn); decisions specific to Rust/wgpu are n
   clear + premultiplied blend as the surface) and reads it back — surface readback is
   backend-fragile (and impossible on wgpu canvases in headless Chromium, D10), while a
   re-render is byte-deterministic.
+- **The surface-free device (wasm 0.2.3, `loadHeadless`)**: the wasm binding can also
+  load over a wgpu WebGPU device requested with `compatible_surface: None`. The sink's
+  `surface` stays `None`, `draw` keeps the plan and returns `Ok(())` without ever
+  presenting, and `captureLastFrame`'s readback map then succeeds even on the
+  SwiftShader builds where a surface-configured, presented device rejects `mapAsync`
+  (D10) — the pixel-exact browser WebGPU validation path (the demo harness loads Rust
+  WebGPU this way; evidence: the demo's `docs/browser-webgpu.md`).
 - **The desktop `--screenshot` mode**: the binary captures the first painted frame to a
   PNG (`--screenshot out.png [--size WxH] [--scroll y]`) and exits; the demo's
   `scripts/desktop-smoke.sh` builds it, runs it on a real display (or Xvfb) against
@@ -324,9 +331,12 @@ host, two thin faces.
   and exposes `attach`/`detach` (D30): Android's native window — and with it the
   surface — dies on `suspended` and is recreated per `resumed`, so the surface must
   be replaceable without rebuilding the device.
-- **`#[cfg(web)]` boundary**: the wasm binding's `load` (and its helpers and the
-  canvas/future imports) are gated on `web`; the host crate itself is
-  platform-agnostic and compiles on native, wasm32, and both Android ABIs.
+- **`#[cfg(web)]` boundary**: the wasm binding's `load`, `loadHeadless` (and their
+  helpers, the canvas/future imports, and the wasm clock) are gated on `web`; the host
+  crate itself is platform-agnostic and compiles on native, wasm32, and both Android
+  ABIs. The sink is platform-agnostic too — it stores an `Option<Surface<'static>>`
+  that is `None` in headless mode (`loadHeadless`) and `Some` for the canvas-bound
+  `load`.
 
 ## D30. The desktop/mobile host (winit)
 
