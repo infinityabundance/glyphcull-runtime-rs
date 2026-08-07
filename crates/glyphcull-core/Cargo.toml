@@ -2,7 +2,10 @@
 name = "glyphcull-core"
 # 0.1.1: clock generics accept ?Sized clocks (`&dyn Clock`), enabling the
 # host's injectable-clock API for wasm (which has no std time).
-version = "0.1.1"
+# 0.1.2: the v1 compatibility rules (hardening pass) — flags bit 0 = critical
+# (unknown noncritical sections skipped, critical ones rejected),
+# canonical known-section order enforced, INFO required at the container.
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
