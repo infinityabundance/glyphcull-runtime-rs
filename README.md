@@ -56,6 +56,23 @@ crates/
                         all three iOS targets.
 ```
 
+## Rendering convention (normative)
+
+MSDF decoding follows the canonical sign convention (SPEC.md §2.5, GLOSSARY:
+"MSDF sign convention"), identical in the wgpu/GL shader (`glyphcull-render`), the
+CPU reference reconstruction (`glyphcull-render::msdf`), and the demo reference
+compositor:
+
+```text
+MSDF channel value < 0.5  = outside glyph
+MSDF channel value == 0.5 = glyph edge
+MSDF channel value > 0.5  = inside glyph
+```
+
+Coverage = smoothstep of `(median(r, g, b) − 0.5) × pxRange` (positive = inside,
+1 device-px edge). The renderer never inverts this to compensate for an atlas;
+a non-conforming atlas is a bug in the atlas, not a case for a renderer workaround.
+
 ## The runtime is not a browser
 
 The runtime knows nothing about HTML, Markdown, or CSS. The compiler owns translation; the

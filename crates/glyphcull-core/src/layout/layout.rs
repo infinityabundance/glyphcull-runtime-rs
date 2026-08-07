@@ -664,7 +664,6 @@ impl<'a> LayoutEngine<'a> {
         let baseline = line_top + self.baseline_offset(block_style);
         let mut runs: Vec<RunLayout> = Vec::new();
         let mut glyphs: Vec<GlyphInstance> = Vec::new();
-        let mut cursor_x = f64::from(line_x);
         // The line's tokens: a KP item is one box (at even indices) plus one
         // break item (glue/penalty, at odd indices) per token, so token `i`
         // occupies items `2i` and `2i+1`. A line spanning items `[start..end]`
@@ -677,6 +676,37 @@ impl<'a> LayoutEngine<'a> {
         // geometry (line count, y, heights, ratios) is identical.
         let token_start = br.start / 2;
         let token_end = (br.end - 1) / 2;
+        // Phase G (line-start ink guard): the first glyph's ink must not start
+        // left of the line origin — a negative left side bearing would paint
+        // ink outside the viewport at a line start. Shift the line start right
+        // by the overhang plus one document pixel of anti-aliasing margin.
+        // Deterministic: computed from the first atlas-bearing token's first
+        // glyph (bearing, scale, and the MSDF AA edge all enter through
+        // bearing_x · font_size_px). Mirrors the JS runtime exactly.
+        let mut line_shift = 0.0_f64;
+        for idx in token_start..=token_end {
+            let token = &tokens[idx];
+            if let Some(atlas) = self.atlas_for(token.style) {
+                let probe = measure_run(
+                    atlas,
+                    &token.text,
+                    token.font_size_px,
+                    token.style.letter_spacing,
+                );
+                if let Some(first) = probe.glyphs.first() {
+                    if !first.is_mark {
+                        if let Some(glyph) = first.glyph {
+                            line_shift = f64::from(crate::layout::measure::line_start_shift(
+                                glyph.bearing_x,
+                                token.font_size_px,
+                            ));
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        let mut cursor_x = f64::from(line_x) + line_shift;
         let mut token_index = 0usize;
         for token in tokens {
             if token_index < token_start {

@@ -84,6 +84,22 @@ pub fn sum_advances(glyphs: &[GlyphMetric<'_>], start: usize, end: usize) -> f64
         .sum()
 }
 
+/// Phase G (line-start ink guard): the shift needed so a line's first glyph
+/// ink is not clipped at the line origin. A negative left side bearing paints
+/// ink left of the pen; the shift is the overhang plus one document pixel of
+/// anti-aliasing margin (the MSDF AA edge). Positive/zero bearings need no
+/// shift. Deterministic: a pure function of the glyph's bearing and size.
+/// Mirrors the JS `lineStartShift` exactly.
+#[must_use]
+pub fn line_start_shift(bearing_x: f32, font_size_px: f32) -> f32 {
+    let ink_left = bearing_x * font_size_px;
+    if ink_left < 0.0 {
+        -ink_left + 1.0
+    } else {
+        0.0
+    }
+}
+
 /// Measure a text run against an atlas at a font size. `letter_spacing_px` is
 /// added after every non-mark glyph (SPEC.md §2.3, tag 15).
 ///
@@ -201,6 +217,20 @@ mod tests {
             no_outline,
             combining,
         }
+    }
+
+    #[test]
+    fn line_start_shift_guards_negative_bearings() {
+        // Positive / zero bearings: no shift (the ink starts at or right of
+        // the pen).
+        assert_eq!(line_start_shift(0.05, 192.0), 0.0);
+        assert_eq!(line_start_shift(0.0, 192.0), 0.0);
+        // Negative bearing: the ink would start left of the pen; the shift is
+        // the overhang plus one document pixel of anti-aliasing margin.
+        assert!((line_start_shift(-0.1, 192.0) - (0.1 * 192.0 + 1.0)).abs() < 1e-4);
+        assert!((line_start_shift(-0.05, 96.0) - (0.05 * 96.0 + 1.0)).abs() < 1e-4);
+        // Scale dependence: the overhang grows with the font size.
+        assert!(line_start_shift(-0.1, 384.0) > line_start_shift(-0.1, 192.0));
     }
 
     fn atlas() -> Atlas {
