@@ -4,6 +4,18 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (0.1.0 — the iOS host crate, Phase 4.13 follow-up)
+
+- `glyphcull-ios` 0.1.0: the iOS face of the six-operation API — the **same
+  crate split as the Android host (entry + asset read only)**: the app is
+  `glyphcull-mobile`'s winit `MobileApp`/`run_with` verbatim (winit's iOS
+  backend calls `UIApplicationMain`), and this crate adds the bundle-resource
+  read (`doc.cull` beside the executable, `std::env::current_exe` — no FFI;
+  pure path logic, unit-tested). CI type-checks it for
+  `aarch64-apple-ios`/`aarch64-apple-ios-sim`/`x86_64-apple-ios`; a full
+  link + app bundle needs Xcode (the demo repo's docker-osx pipeline is
+  recorded).
+
 ### Added (0.1.4 / 0.1.2 — the mobile gesture layer: fling/inertia + pinch zoom)
 
 - `glyphcull-host` 0.1.4: `HostDocument::scroll_with_surface` — the viewport and the

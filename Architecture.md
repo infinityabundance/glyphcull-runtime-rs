@@ -32,6 +32,10 @@ Pixels
                  ┌──────────▼──────────┐
                  │  glyphcull-mobile   │  Android host (winit/wgpu, Phase 4.13)
                  └──────────┬──────────┘
+                            │  the shared MobileApp (winit app + gestures)
+                 ┌──────────▼──────────┐
+                 │  glyphcull-ios      │  iOS host (same app; bundle asset read)
+                 └──────────┬──────────┘
                             │  the shared DesktopSink (attach/detach lifecycle)
                  ┌──────────▼──────────┐
                  │  glyphcull-wasm     │  wasm32 bindings (same tiny API)
@@ -54,9 +58,10 @@ Dependency direction is strictly downward. `glyphcull-core` knows nothing about 
 or wasm-bindgen; `glyphcull-render` knows nothing about hosts; `glyphcull-host` knows nothing
 about winit or wasm-bindgen (it is the JS `src/api/runtime.ts` mirrored as a crate, shared by
 both bindings — DESIGN.md D29). `glyphcull-mobile` reuses the desktop sink (`glyphcull-desktop`
-re-exports `DesktopSink`), so the Android host adds no rendering or host code — only the
-winit application, the asset read, and the entry point. This is what makes the core testable
-headlessly and portable to every target.
+re-exports `DesktopSink`), and `glyphcull-ios` reuses the mobile app verbatim (only the
+bundle asset read differs) — so the hosts add no rendering or host code, only the winit
+application, the asset read, and the entry. This is what makes the core testable headlessly
+and portable to every target.
 
 ## 3. Subsystems (glyphcull-core)
 

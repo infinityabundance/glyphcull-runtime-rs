@@ -17,7 +17,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: wasm32-unknown-unknown, aarch64-linux-android, x86_64-linux-android
+          targets: wasm32-unknown-unknown, aarch64-linux-android, x86_64-linux-android, aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
@@ -48,6 +48,14 @@ jobs:
         run: cargo check -p glyphcull-mobile --target aarch64-linux-android
       - name: Check (mobile x86_64)
         run: cargo check -p glyphcull-mobile --target x86_64-linux-android
+      # iOS: type-check the host crate for all three targets (a full link +
+      # app bundle needs Xcode — the recorded docker-osx pipeline).
+      - name: Check (ios aarch64)
+        run: cargo check -p glyphcull-ios --target aarch64-apple-ios
+      - name: Check (ios simulator)
+        run: cargo check -p glyphcull-ios --target aarch64-apple-ios-sim
+      - name: Check (ios x86_64)
+        run: cargo check -p glyphcull-ios --target x86_64-apple-ios
       - name: Doc build
         run: cargo doc --all --no-deps
       - name: Bench smoke

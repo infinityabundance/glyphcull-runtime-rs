@@ -796,6 +796,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "glyphcull-ios"
+version = "0.1.0"
+dependencies = [
+ "glyphcull-core",
+ "glyphcull-desktop",
+ "glyphcull-host",
+ "glyphcull-mobile",
+]
+
+[[package]]
 name = "glyphcull-mobile"
 version = "0.1.2"
 dependencies = [

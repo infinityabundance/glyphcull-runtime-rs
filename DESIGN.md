@@ -404,6 +404,11 @@ and the lifecycle differ.
   `glyphcull-demo/docs/android-emulator-smoke.md`, which also documents the two real
   fixes the hunt surfaced: GL downlevel limits and the `GLYPHCULL_WGPU_BACKEND`
   override.
+- **iOS is the same split (0.1.0)**: `glyphcull-ios` re-exports the mobile app and
+  adds the bundle-resource read (`doc.cull` beside the executable — `std::env::current_exe`,
+  no FFI). winit's iOS backend drives the whole UIKit app from `EventLoop::run_app`
+  (`UIApplicationMain`); wgpu uses the Metal backend via `Backends::PRIMARY`. The
+  Xcode app-bundle build is recorded in the demo roadmap (docker-osx pipeline).
 
 ## R-series: deliberate divergences from the JS runtime (correctness)
 

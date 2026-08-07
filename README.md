@@ -40,6 +40,9 @@ crates/
                         from APK assets; same six-op API; drag/fling scroll + pinch zoom
                         (pure `gesture` module); APK assembled by the demo's Docker
                         pipeline and pixel-validated on an emulator (D31 capture, PASS).
+  glyphcull-ios/      — iOS host (Phase 4.13 follow-up): the same winit app + shared sink;
+                        only the asset read differs (the bundle resource); CI type-checks
+                        all three iOS targets.
 ```
 
 ## The runtime is not a browser
