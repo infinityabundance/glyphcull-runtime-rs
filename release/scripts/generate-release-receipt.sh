@@ -22,8 +22,10 @@ cd "$(dirname "$0")/../.."
 PKG="${1:?usage: generate-release-receipt.sh <package> [version]}"
 VERSION="${2:-}"
 
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "error: working tree has uncommitted tracked changes; a receipt records a clean-tree release" >&2
+# Dirty check: uncommitted tracked changes block receipt generation — except
+# the receipts themselves (release/receipts/), which are being regenerated.
+if [ -n "$(git status --porcelain --untracked-files=no | grep -v 'release/receipts/')" ]; then
+  echo "error: uncommitted tracked changes outside release/receipts/; a receipt records a clean-tree release" >&2
   exit 1
 fi
 
