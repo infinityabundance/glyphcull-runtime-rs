@@ -31,7 +31,7 @@ fn premultiply_rgba8(pixels: &[u8]) -> Vec<u8> {
     for chunk in pixels.chunks_exact(4) {
         let a = chunk.get(3).copied().unwrap_or(0);
         let scale = u16::from(a);
-        out.push(((u16::from(chunk.get(0).copied().unwrap_or(0)) * scale) / 255) as u8);
+        out.push(((u16::from(chunk.first().copied().unwrap_or(0)) * scale) / 255) as u8);
         out.push(((u16::from(chunk.get(1).copied().unwrap_or(0)) * scale) / 255) as u8);
         out.push(((u16::from(chunk.get(2).copied().unwrap_or(0)) * scale) / 255) as u8);
         out.push(a);

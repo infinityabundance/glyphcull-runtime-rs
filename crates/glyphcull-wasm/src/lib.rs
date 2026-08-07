@@ -37,9 +37,12 @@ pub use sink::WgpuSink;
 
 /// The wasm clock: `performance.now()` (monotonic milliseconds). The host's
 /// scheduler budgets and the lifecycle's cooling periods read it; the native
-/// default (`SystemTime`) panics on wasm32-unknown-unknown.
+/// default (`SystemTime`) panics on wasm32-unknown-unknown. Web-only: it is
+/// consumed by `load_inner` (the canvas-bound entry point).
+#[cfg(web)]
 struct WasmClock;
 
+#[cfg(web)]
 impl glyphcull_core::clock::Clock for WasmClock {
     fn now(&self) -> u64 {
         web_sys::window()
@@ -49,6 +52,7 @@ impl glyphcull_core::clock::Clock for WasmClock {
 }
 
 /// The `'static` wasm clock (zero-sized).
+#[cfg(web)]
 static WASM_CLOCK: WasmClock = WasmClock;
 
 /// The wasm document handle: exactly the six runtime operations.
