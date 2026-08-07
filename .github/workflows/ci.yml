@@ -27,6 +27,11 @@ jobs:
         run: cargo test --all --all-targets
       - name: Build (wasm32)
         run: cargo build --all --target wasm32-unknown-unknown
+      # The wasm crate's `load` API is gated behind `cfg(web)`, which its build
+      # script enables on wasm32; clippy here type-checks and lints the real
+      # canvas-dependent path (native clippy above strips it).
+      - name: Clippy (wasm32)
+        run: cargo clippy --all --target wasm32-unknown-unknown
       # Android verifies crate readiness (ROADMAP 4.12): library targets only —
       # a bin would need the NDK linker, which the CI image does not carry.
       - name: Build (android aarch64)

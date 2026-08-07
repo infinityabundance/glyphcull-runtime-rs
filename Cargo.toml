@@ -24,8 +24,9 @@ repository = "https://github.com/infinityabundance/glyphcull-runtime-rs"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "deny"
-# `web` is a built-in rustc target cfg (wasm32-unknown-unknown et al.), but it
-# is not in check-cfg's default known set; declare it so the lint stays clean.
+# `web` is a custom cfg (not a rustc built-in): the glyphcull-wasm build
+# script sets it on wasm32 targets and declares it via check-cfg; keep the
+# workspace-level declaration as well so the lint stays clean everywhere.
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web)'] }
 
 [workspace.lints.clippy]
