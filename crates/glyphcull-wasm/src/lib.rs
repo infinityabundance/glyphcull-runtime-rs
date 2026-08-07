@@ -136,11 +136,34 @@ impl GlyphCullDocument {
     }
 }
 
+/// The requested wgpu backend for the canvas surface (host-level choice;
+/// `auto` prefers WebGPU and falls back to WebGL2).
+#[cfg(web)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoadBackend {
+    Auto,
+    WebGpu,
+    WebGl,
+}
+
+#[cfg(web)]
+impl LoadBackend {
+    /// The wgpu backend mask for this choice.
+    fn mask(self) -> wgpu::Backends {
+        match self {
+            Self::Auto => wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+            Self::WebGpu => wgpu::Backends::BROWSER_WEBGPU,
+            Self::WebGl => wgpu::Backends::GL,
+        }
+    }
+}
+
 /// Load a `.cull` package and construct its document handle.
 ///
-/// `options` is a plain object with optional numeric fields: `dpr`,
-/// `contentWidth`, `width`, `height`, `margin`, `glyphBudgetBytes`,
-/// `frameBudgetMs`, `coolingPeriodMs`.
+/// `options` is a plain object with optional fields: `dpr`, `contentWidth`,
+/// `width`, `height`, `margin`, `glyphBudgetBytes`, `frameBudgetMs`,
+/// `coolingPeriodMs` (numbers) and `backend` (`"webgpu"`, `"webgl"`, or
+/// `"auto"`; default `"auto"`).
 ///
 /// Web only: the canvas is the DOM canvas the surface binds to.
 #[cfg(web)]
@@ -150,11 +173,41 @@ pub fn load(
     canvas: HtmlCanvasElement,
     options: JsValue,
 ) -> Result<js_sys::Promise, JsValue> {
+    let backend = parse_backend(&options)?;
     let options = parse_options(&options)?;
     let bytes = bytes.to_vec();
     Ok(future_to_promise(async move {
-        load_inner(&bytes, canvas, options).await
+        load_inner(&bytes, canvas, options, backend).await
     }))
+}
+
+/// Read the optional `backend` option (default `auto`).
+#[cfg(web)]
+fn parse_backend(options: &JsValue) -> Result<LoadBackend, JsValue> {
+    let value = if options.is_undefined() || options.is_null() {
+        JsValue::UNDEFINED
+    } else {
+        Reflect::get(options, &JsValue::from_str("backend")).map_err(|_| {
+            js_err(HostError::InvalidOptions(
+                "backend could not be read".to_string(),
+            ))
+        })?
+    };
+    let backend = if value.is_undefined() || value.is_null() {
+        LoadBackend::Auto
+    } else {
+        match value.as_string().as_deref() {
+            Some("auto") => LoadBackend::Auto,
+            Some("webgpu") => LoadBackend::WebGpu,
+            Some("webgl") => LoadBackend::WebGl,
+            _ => {
+                return Err(js_err(HostError::InvalidOptions(
+                    "backend must be \"webgpu\", \"webgl\", or \"auto\"".to_string(),
+                )))
+            }
+        }
+    };
+    Ok(backend)
 }
 
 #[cfg(web)]
@@ -162,6 +215,7 @@ async fn load_inner(
     bytes: &[u8],
     canvas: HtmlCanvasElement,
     options: HostOptions,
+    backend: LoadBackend,
 ) -> Result<JsValue, JsValue> {
     let pkg = parse(bytes).map_err(|e| js_err(HostError::Load(e.to_string())))?;
     // Typed validation (also guards the host's internal re-build).
@@ -170,10 +224,11 @@ async fn load_inner(
         let _ = doc.all_ids().len();
     }
 
-    // The wgpu renderer: instance → surface → adapter → device (WebGPU in
-    // the browser; GL on native).
+    // The wgpu renderer: instance → surface → adapter → device. The backend
+    // mask follows the requested host backend (WebGPU in the browser; GL on
+    // native): `auto` prefers WebGPU and falls back to WebGL2.
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+        backends: backend.mask(),
         ..Default::default()
     });
     // The canvas is passed by value: wgpu's `SurfaceTarget::Canvas` keeps its
