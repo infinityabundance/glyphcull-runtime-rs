@@ -4,6 +4,9 @@
 //! strictness"); the compiler reference reader covers them in
 //! `glyphcull-format`'s reader tests.
 
+#![allow(missing_docs)]
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
+
 mod common;
 
 use glyphcull_core::error::ErrorKind;
