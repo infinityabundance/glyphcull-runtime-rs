@@ -22,6 +22,46 @@ use std::fmt;
 use crate::plan::{PlanOp, RenderPlan};
 use crate::shader::MSDF_WGSL;
 
+/// Premultiply RGBA8 texels in place of a copy (alpha-scaled channels). The
+/// MSDF program treats `texture.rgb` as a coverage field, so a transparent
+/// texel must carry zero-valued channels; this matches the JS WebGL renderer's
+/// `UNPACK_PREMULTIPLY_ALPHA_WEBGL` upload convention.
+fn premultiply_rgba8(pixels: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(pixels.len());
+    for chunk in pixels.chunks_exact(4) {
+        let a = chunk.get(3).copied().unwrap_or(0);
+        let scale = u16::from(a);
+        out.push(((u16::from(chunk.get(0).copied().unwrap_or(0)) * scale) / 255) as u8);
+        out.push(((u16::from(chunk.get(1).copied().unwrap_or(0)) * scale) / 255) as u8);
+        out.push(((u16::from(chunk.get(2).copied().unwrap_or(0)) * scale) / 255) as u8);
+        out.push(a);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::premultiply_rgba8;
+
+    #[test]
+    fn premultiply_scales_channels_by_alpha() {
+        // Opaque: identity. Transparent white: zero channels (no phantom ink).
+        assert_eq!(
+            premultiply_rgba8(&[255, 255, 255, 255]),
+            vec![255, 255, 255, 255]
+        );
+        assert_eq!(premultiply_rgba8(&[255, 255, 255, 0]), vec![0, 0, 0, 0]);
+        assert_eq!(
+            premultiply_rgba8(&[255, 255, 255, 128]),
+            vec![128, 128, 128, 128]
+        );
+        assert_eq!(
+            premultiply_rgba8(&[100, 200, 50, 100]),
+            vec![39, 78, 19, 100]
+        );
+    }
+}
+
 /// The budget (in bytes) of GPU texture memory the renderer keeps. When an
 /// upload would exceed it, the oldest-uploaded entries are evicted
 /// deterministically (ascending handle = upload order); a draw referencing an
@@ -279,6 +319,13 @@ impl TextureManager {
     }
 
     /// Upload (or refresh) an image texture. Returns a handle.
+    ///
+    /// Image texels are premultiplied before upload: the MSDF program samples
+    /// `texture.rgb` as a coverage field (median), and the JS WebGL renderer
+    /// uploads with `UNPACK_PREMULTIPLY_ALPHA_WEBGL` — premultiplying here
+    /// keeps the two runtimes' image rendering identical (a transparent texel
+    /// with non-zero RGB must not read as ink). Atlas pages stay raw: their
+    /// distance channels are already the coverage field.
     fn upload_image(&mut self, image_id: u32, pixels: &[u8], width: u32, height: u32) -> u32 {
         let handle = match self.image_handles.get(&image_id) {
             Some(handle) => *handle,
@@ -289,7 +336,8 @@ impl TextureManager {
                 handle
             }
         };
-        self.create_or_refresh(handle, pixels, width, height);
+        let premultiplied = premultiply_rgba8(pixels);
+        self.create_or_refresh(handle, &premultiplied, width, height);
         self.evict_to_budget();
         handle
     }
