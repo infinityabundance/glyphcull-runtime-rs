@@ -4,6 +4,30 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (release receipts, hardening pass H7)
+
+- `release/` — the receipt system: schema template, `generate-release-receipt.sh`
+  (records commit, deterministic source-tree hash, the real `cargo package` tarball
+  hash, toolchain, commands, results, UTC timestamp), `check-release-receipts.sh`
+  (`--fast` CI gate; `--full` recomputes every package hash from a git worktree of
+  its recorded commit), and `release-dry-run.sh` (all seven crates assemble in
+  release order: core → render → host → wasm → desktop → mobile → ios).
+- `release/receipts/` — committed receipts for all seven published crates with
+  build/test/conformance/package gates recorded as pass (full gates re-run at
+  generation).
+- CI: the `gate` job runs `release/scripts/check-release-receipts.sh --fast`.
+
+### Fixed (core reader tests vs the v1 INFO-required rule)
+
+- The v1 compatibility rules (SPEC.md §1.6 rule 9, enforced in `ade4e85`) made INFO
+  the container-required section; `reader_sections.rs` and `reader_stress.rs` still
+  built INFO-less single-purpose containers, so 13 tests were red since that commit.
+  The containers now carry a minimal INFO section first (canonical order), preserving
+  each test's section-decoder / stress intent. Found by the H7 receipt full gate.
+- `reader_compat.rs` was missing the project's test-file clippy allow header that
+  every sibling test file carries, so `cargo clippy --all-targets` was red since the
+  same commit; the header is now present. Clippy re-verified clean.
+
 ### Changed (README status correction, hardening pass H4)
 
 - The README now leads with the tagline **"A compiled GPU document runtime."** and a

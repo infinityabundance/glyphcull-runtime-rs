@@ -1,0 +1,29 @@
+{
+  "project": "glyphcull",
+  "repository": "https://github.com/infinityabundance/glyphcull-compiler.git",
+  "package": "glyphcull-core",
+  "version": "0.1.2",
+  "git_commit": "0000000000000000000000000000000000000000",
+  "git_tree_clean": true,
+  "source_archive_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "package_archive_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "toolchain": {
+    "rust": "rustc 1.85.0 (000000000 2025-02-20)",
+    "cargo": "cargo 1.85.0 (000000000 2025-02-20)",
+    "node": "v22.0.0",
+    "npm": "10.0.0"
+  },
+  "commands": {
+    "build": "cargo build --workspace --all-targets",
+    "test": "cargo test --all --all-targets",
+    "conformance": "./scripts/ci-smoke.sh (compiler self-check) + (glyphcull-demo) ./scripts/run-conformance.sh",
+    "package_dry_run": "cargo package -p glyphcull-core --no-verify"
+  },
+  "results": {
+    "build": "pass",
+    "test": "pass",
+    "conformance": "pass",
+    "package_dry_run": "pass"
+  },
+  "release_timestamp": "2026-08-07T00:00:00Z"
+}

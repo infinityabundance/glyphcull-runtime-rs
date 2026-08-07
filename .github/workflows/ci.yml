@@ -33,6 +33,8 @@ jobs:
         run: ./scripts/ci-audit.sh
       - name: Package dry-run (every crate packages cleanly)
         run: ./scripts/ci-package.sh
+      - name: Release receipts (schema, git, source-hash honesty, completeness)
+        run: release/scripts/check-release-receipts.sh --fast
       - name: Build (wasm32)
         run: cargo build --all --target wasm32-unknown-unknown
       # The wasm crate's `load` API is gated behind `cfg(web)`, which its build
