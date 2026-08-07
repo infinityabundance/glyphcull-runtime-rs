@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "GlyphCull Android host: a winit application that loads a packaged .cull document from the APK assets and serves the identical six-operation runtime API (load/scroll/paint/select/copy/destroy) over wgpu, reusing the shared desktop sink."
-keywords = ["document", "gpu", "runtime", "compiled", "android", "winit"]
+keywords = ["document", "gpu", "runtime", "compiled", "android"]
 categories = ["rendering", "graphics", "gui"]
 
 # cdylib: the Android activity's native library (the `android_main` entry
