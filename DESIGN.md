@@ -418,7 +418,9 @@ and the lifecycle differ.
   adds the bundle-resource read (`doc.cull` beside the executable — `std::env::current_exe`,
   no FFI). winit's iOS backend drives the whole UIKit app from `EventLoop::run_app`
   (`UIApplicationMain`); wgpu uses the Metal backend via `Backends::PRIMARY`. The
-  Xcode app-bundle build is recorded in the demo roadmap (docker-osx pipeline).
+  app bundle's binary is the crate's `src/main.rs` (loads the bundled `doc.cull`,
+  runs `run_with`); the `.ipa` is built by the `ios-ipa.yml` workflow (real Xcode
+  on a macOS runner — ad-hoc signed, `scripts/build-ipa.sh`).
 
 ## R-series: deliberate divergences from the JS runtime (correctness)
 

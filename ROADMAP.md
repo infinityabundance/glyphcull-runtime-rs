@@ -57,10 +57,12 @@ the JS runtime phase completes (cross-runtime contract validation requires both)
       `gesture` module is headless-tested; the drag delta is fixed to doc px).
 - [x] **4.13 follow-up: the iOS host crate** (2026-08-07) — `glyphcull-ios` 0.1.0: the
       same crate split as Android (entry + asset read only) over the shared winit
-      app; CI type-checks it for all three iOS targets. The Xcode app-bundle build
-      (docker-osx pipeline) is recorded in the demo roadmap — this environment's
-      Docker storage cannot run the macOS VM to completion (see the demo's
-      docker-osx note).
+      app; CI type-checks it for all three iOS targets. **The `.ipa` app bundle is
+      built by CI** (real Xcode on a macOS runner — `ios-ipa.yml` +
+      `scripts/build-ipa.sh`): ad-hoc signed `GlyphCull-0.1.0.ipa`, a genuine
+      `aarch64-apple-ios` Mach-O linking UIKit. The docker-osx local-VM path and its
+      recorded blocker (the recovery license panel fails to render in QEMU; the Xcode
+      download is Apple-ID-gated) are in the demo's `docs/ios-build.md`.
 - [x] **Test pyramid complete**: unit/integration/property/stress/memory/performance layers
       per subsystem (see TESTING.md); rendering validation vs a committed golden image
       (`crates/glyphcull-render/tests/fixtures/golden-document.png`, headless CPU reference

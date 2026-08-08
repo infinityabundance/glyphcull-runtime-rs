@@ -4,6 +4,24 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Added (iOS app bundle pipeline — the .ipa by CI)
+
+- `crates/glyphcull-ios/src/main.rs` — the app bundle's binary: loads the
+  bundled `doc.cull` resource and runs `run_with` (winit's iOS backend calls
+  `UIApplicationMain` from there — no Objective-C shell); an inert stub on
+  other targets so the workspace keeps building.
+- `crates/glyphcull-ios/app/` — the bundle manifest (`Info.plist`, iOS 13.0+)
+  and the `aarch64-apple-ios` linker wrapper (clang with the iPhoneOS sysroot).
+- `crates/glyphcull-ios/scripts/build-ipa.sh` — cargo build + app assembly
+  (executable, Info.plist, PkgInfo, the bundled `doc.cull`), ad-hoc codesign,
+  `.ipa` packaging, and verification.
+- `.github/workflows/ios-ipa.yml` — the `.ipa` build on a macOS runner (real
+  Xcode): the ad-hoc signed `GlyphCull-0.1.0.ipa` (a genuine
+  `aarch64-apple-ios` Mach-O linking UIKit) is uploaded as a workflow artifact.
+  The docker-osx local-VM path and its recorded blocker (the recovery license
+  panel fails to render in QEMU; the Xcode download is Apple-ID-gated) are in
+  the demo's `docs/ios-build.md`.
+
 ### Added (release receipts, hardening pass H7)
 
 - `release/` — the receipt system: schema template, `generate-release-receipt.sh`
@@ -67,9 +85,10 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
   backend calls `UIApplicationMain`), and this crate adds the bundle-resource
   read (`doc.cull` beside the executable, `std::env::current_exe` — no FFI;
   pure path logic, unit-tested). CI type-checks it for
-  `aarch64-apple-ios`/`aarch64-apple-ios-sim`/`x86_64-apple-ios`; a full
-  link + app bundle needs Xcode (the demo repo's docker-osx pipeline is
-  recorded).
+  `aarch64-apple-ios`/`aarch64-apple-ios-sim`/`x86_64-apple-ios`; the `.ipa`
+  app bundle is built by the `ios-ipa.yml` workflow (real Xcode on a macOS
+  runner — ad-hoc signed; the docker-osx local-VM path and its recorded
+  blocker are in the demo's `docs/ios-build.md`).
 
 ### Added (0.1.4 / 0.1.2 — the mobile gesture layer: fling/inertia + pinch zoom)
 
