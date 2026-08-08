@@ -41,7 +41,7 @@ echo "==> Signing (ad-hoc)"
 xcrun codesign --force --sign - --timestamp=none "$APP_DIR"
 
 echo "==> Packaging $IPA"
-(cd "crates/glyphcull-ios/dist" && zip -qry - Payload > "../$IPA")
+(cd "crates/glyphcull-ios/dist" && zip -qry - Payload > "GlyphCull-$VERSION.ipa")
 ls -la "$IPA"
 
 echo "==> Verification"
