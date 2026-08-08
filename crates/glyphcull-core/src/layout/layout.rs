@@ -1107,12 +1107,23 @@ impl<'a> LayoutEngine<'a> {
             None => return self.empty_block(chunk_id, style, x, y, width),
         };
         // Collect rows, cell ids, and spans (last `cell_span` extra wins,
-        // mirroring the JS loop).
+        // mirroring the JS loop). A table caption is a `caption` chunk child
+        // (SPEC.md §2.2): lay it out above the rows and advance the table
+        // origin by its height.
         let mut rows: Vec<TableRowSpec> = Vec::new();
-        for row_id in self.doc.child_ids(chunk.id) {
+        let mut caption: Option<Rc<BlockLayout>> = None;
+        for child_id in self.doc.child_ids(chunk.id) {
+            if let Some(child) = self.doc.chunk(child_id) {
+                if child.kind == ChunkKind::Caption {
+                    caption = Some(Rc::new(
+                        self.layout_text_block(child_id, style, x, y, width),
+                    ));
+                    continue;
+                }
+            }
             let mut cell_ids: Vec<u32> = Vec::new();
             let mut spans: Vec<(u16, u16)> = Vec::new();
-            for cell_id in self.doc.child_ids(row_id) {
+            for cell_id in self.doc.child_ids(child_id) {
                 cell_ids.push(cell_id);
                 let mut colspan: u16 = 1;
                 let mut rowspan: u16 = 1;
@@ -1130,6 +1141,7 @@ impl<'a> LayoutEngine<'a> {
             }
             rows.push(TableRowSpec { cell_ids, spans });
         }
+        let caption_h = caption.as_ref().map_or(0.0, |c| f64::from(c.h));
 
         // Column count and natural widths.
         let column_count = rows.iter().fold(1usize, |max, row| {
@@ -1211,7 +1223,7 @@ impl<'a> LayoutEngine<'a> {
             col_x.push(acc);
             acc += w;
         }
-        let mut row_y = f64::from(y);
+        let mut row_y = f64::from(y) + caption_h;
         let mut row_y_positions: Vec<f64> = Vec::with_capacity(row_heights.len());
         for h in &row_heights {
             row_y_positions.push(row_y);
@@ -1249,14 +1261,19 @@ impl<'a> LayoutEngine<'a> {
             placements.push(row_placements);
         }
         let table_rows = placements.clone();
-        let children: Vec<Rc<BlockLayout>> = placements
-            .iter()
-            .flat_map(|row| row.iter())
-            .map(|p| Rc::clone(&p.cell))
-            .collect();
+        let mut children: Vec<Rc<BlockLayout>> = Vec::with_capacity(placements.len() + 1);
+        if let Some(caption) = caption {
+            children.push(caption);
+        }
+        children.extend(
+            placements
+                .iter()
+                .flat_map(|row| row.iter())
+                .map(|p| Rc::clone(&p.cell)),
+        );
         let table = TableLayout {
             x,
-            y,
+            y: (f64::from(y) + caption_h) as f32,
             w: (acc - f64::from(x)) as f32,
             columns: col_widths.iter().map(|w| *w as f32).collect(),
             rows: table_rows,

@@ -4,6 +4,15 @@ All notable changes, reverse chronological. Keep a Changelog format; Semantic Ve
 
 ## [Unreleased]
 
+### Fixed (table captions lay out above the rows)
+
+- `layout_table` now recognizes a `caption` chunk child (SPEC.md §2.2) and lays
+  it out as a text block **above** the rows, advancing the table origin by the
+  caption's height — mirroring the JS `layoutTable`. Previously the caption
+  chunk was treated as a row with no cells, so its text was dropped from the
+  layout. The Linux-wikipedia demo page (4 tables, 1 caption) renders the
+  caption.
+
 ### Added (iOS app bundle pipeline — the .ipa by CI)
 
 - `crates/glyphcull-ios/src/main.rs` — the app bundle's binary: loads the
