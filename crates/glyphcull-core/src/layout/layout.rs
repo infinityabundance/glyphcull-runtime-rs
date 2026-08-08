@@ -1306,21 +1306,87 @@ impl<'a> LayoutEngine<'a> {
 
     fn cell_natural_width(&self, cell_id: u32, max_width: f32) -> f64 {
         let style = self.style_of(cell_id);
-        let atlas = self.atlas_for(style);
+        // The natural width of the cell's content: paragraph/heading/caption
+        // text is laid out in runs, so the widest natural line is measured
+        // per run with the run's own style (a `code` run measures with the
+        // mono atlas; mixed styles sum correctly). Containers (lists, nested
+        // tables) and images have no single natural text width: keep the
+        // conservative two-em floor so a column never collapses below its
+        // content line height (mirrors the JS `block_natural_width`).
         let mut max = 0.0_f64;
         for child_id in self.doc.child_ids(cell_id) {
-            if let Some(text) = self.doc.direct_text(child_id) {
-                if let Some(atlas) = atlas {
-                    if !text.is_empty() {
-                        let measured =
-                            measure_run(atlas, text, style.font_size_px, style.letter_spacing);
-                        max = max.max(measured.width_px);
-                    }
-                }
+            if let Some(natural) = self.block_natural_width(child_id) {
+                max = max.max(natural);
             }
         }
         max.max(f64::from(style.font_size_px) * 2.0)
             .min(f64::from(max_width))
+    }
+
+    /// The natural width of a text block: the widest line of its inline
+    /// content (hard breaks end a line), measured per run with the run's own
+    /// style. Only text blocks return a width; containers and images return
+    /// `None` (mirrors the JS `blockNaturalWidth`).
+    fn block_natural_width(&self, block_id: u32) -> Option<f64> {
+        let chunk = self.doc.chunk(block_id)?;
+        match chunk.kind {
+            ChunkKind::Paragraph
+            | ChunkKind::Heading1
+            | ChunkKind::Heading2
+            | ChunkKind::Heading3
+            | ChunkKind::Heading4
+            | ChunkKind::Heading5
+            | ChunkKind::Heading6
+            | ChunkKind::Caption => {
+                let mut segment = 0.0_f64;
+                let mut widest = 0.0_f64;
+                self.walk_inline_natural_width(block_id, &mut segment, &mut widest);
+                Some(widest.max(segment))
+            }
+            ChunkKind::CodeBlock => {
+                let text = self.doc.direct_text(block_id)?;
+                if text.is_empty() {
+                    return None;
+                }
+                let style = self.style_of(block_id);
+                let atlas = self.atlas_for(style)?;
+                let mut widest = 0.0_f64;
+                for line in text.split('\n') {
+                    let measured =
+                        measure_run(atlas, line, style.font_size_px, style.letter_spacing);
+                    widest = widest.max(measured.width_px);
+                }
+                Some(widest)
+            }
+            _ => None,
+        }
+    }
+
+    /// Walk a block's inline content summing measured run widths per line;
+    /// a hard break ends the current line. O(depth × runs); the depth is
+    /// bounded by the format's nesting limits.
+    fn walk_inline_natural_width(&self, id: u32, segment: &mut f64, widest: &mut f64) {
+        let Some(chunk) = self.doc.chunk(id) else {
+            return;
+        };
+        if chunk.kind == ChunkKind::Br {
+            *widest = widest.max(*segment);
+            *segment = 0.0;
+            return;
+        }
+        if let Some(text) = self.doc.direct_text(id) {
+            if !text.is_empty() {
+                let style = self.style_of(id);
+                if let Some(atlas) = self.atlas_for(style) {
+                    let measured =
+                        measure_run(atlas, text, style.font_size_px, style.letter_spacing);
+                    *segment += measured.width_px;
+                }
+            }
+        }
+        for child_id in self.doc.child_ids(id) {
+            self.walk_inline_natural_width(child_id, segment, widest);
+        }
     }
 
     // ---------------------------------------------------------------------

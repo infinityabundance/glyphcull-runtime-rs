@@ -761,15 +761,15 @@ fn table_honors_colspan() {
 #[test]
 fn table_honors_rowspan_and_grows_the_last_spanned_row() {
     // Cell 5 (row 1) spans both rows and carries enough text to force the
-    // last spanned row to grow (the JS growth rule). Single-character words
-    // keep the Knuth–Plass active list alive at the 32px column width, so
-    // the paragraph genuinely wraps into multiple lines.
+    // last spanned row to grow (the JS growth rule). The table is narrow, so
+    // the long cell's natural width (the text measured per run) scales down
+    // and the paragraph genuinely wraps into multiple lines.
     let long = "a b c d e f g h i j k l m n o p q r s t u v w x y z";
     let bytes = table_package(
         &[(1, 2), (1, 1), (1, 1), (1, 1)],
         &[long, "beta", "gamma", "delta"],
     );
-    with_engine(bytes, 800.0, 1.0, |engine| {
+    with_engine(bytes, 140.0, 1.0, |engine| {
         engine.extend_to(f64::INFINITY);
         let table = records(engine)
             .into_iter()
